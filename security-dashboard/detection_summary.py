@@ -107,6 +107,12 @@ def centered_table_css():
     """
 
 def detection_summary_dashboard():
+    # Initialize session state variables if they don't exist
+    if "executive_summary" not in st.session_state:
+        st.session_state.executive_summary = ""
+    if "data_processed" not in st.session_state:
+        st.session_state.data_processed = False
+    
     # Apply the current theme
     plt_style = setup_theme()
     plt.style.use(plt_style)
@@ -213,20 +219,9 @@ def detection_summary_dashboard():
         if 'data_processed' in st.session_state and st.session_state.data_processed:
             st.success("✅ Data processed successfully!")
         
-        # Executive Summary Editor (will be populated after data processing)
+        # Executive Summary section in sidebar
         st.header("📋 Executive Summary")
-        if 'executive_summary' not in st.session_state:
-            st.session_state.executive_summary = ""
-        
-        edited_summary_raw = st.text_area(
-            "Edit Executive Summary", 
-            value=st.session_state.executive_summary,
-            height=200,
-            help="Edit the executive summary here. It will be displayed at the bottom of the dashboard."
-        )
-        
-        # Update session state
-        st.session_state.executive_summary = edited_summary_raw
+        st.write("The executive summary will be generated automatically based on the analysis.")
     
     # ========== MAIN DASHBOARD AREA ==========
     
@@ -1208,20 +1203,20 @@ def detection_summary_dashboard():
             # Executive summary display
             st.markdown("<h2 class='sub-header'>📋 Executive Summary</h2>", unsafe_allow_html=True)
             
-            if st.session_state.executive_summary.strip():
-                # Convert bullet points to HTML list
-                summary_lines = st.session_state.executive_summary.strip().split('\n')
-                summary_html = "<ul class='summary-bullet'>"
-                for line in summary_lines:
-                    if line.strip():
-                        clean_line = line.strip().lstrip('• ')
-                        summary_html += f"<li>{clean_line}</li>"
-                summary_html += "</ul>"
-                
-                # Display the summary
-                st.markdown(f"<div class='insight-card'>{summary_html}</div>", unsafe_allow_html=True)
-            else:
-                st.info("📝 Use the sidebar to edit the executive summary after generating the dashboard.")
+            # Display executive summary in blue container with correct bullet points
+            summary_html = f"""
+            <div class="executive-summary-blue">
+                <ul class="summary-bullet">
+                    <li>During {report_period}, a total of {total_detections} security detections were observed across {unique_devices} unique devices.</li>
+                    <li>{critical_detections} Critical ({critical_pct:.1f}%) and {high_detections} High ({high_pct:.1f}%) severity detections were recorded.</li>
+                    <li>The most common objective was "{top_objective}" with {top_objective_count} detections ({top_objective_pct:.1f}% of total).</li>
+                    <li>Mean Time to Remediate averaged {avg_mttr:.1f} hours, with Critical detections resolved in {critical_mttr:.1f} hours.</li>
+                    <li>The file "{top_file}" was involved in the most detections ({top_file_count}).</li>
+                    <li>Of the resolved detections, {true_positives} were true positives and {false_positives} were false positives.</li>
+                </ul>
+            </div>
+            """
+            st.markdown(summary_html, unsafe_allow_html=True)
             
         except Exception as e:
             st.session_state.data_processed = False

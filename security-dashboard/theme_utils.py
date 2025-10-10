@@ -1,9 +1,25 @@
 import streamlit as st
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 def setup_theme():
     # Check if theme is already in session state
     if 'theme' not in st.session_state:
         st.session_state.theme = 'light'
+    
+    # Set up Seaborn theme based on current theme
+    if st.session_state.theme == 'dark':
+        sns.set_style("darkgrid")
+        sns.set_palette("dark")
+        plt_style = 'dark_background'
+    else:
+        sns.set_style("whitegrid")
+        sns.set_palette("deep")
+        plt_style = 'default'
+    
+    # Set common Seaborn parameters
+    sns.set_context("notebook", font_scale=1.2)
+    plt.rcParams['figure.figsize'] = [10.0, 6.0]
     
     # CSS for light and dark themes
     light_theme = """
@@ -158,5 +174,13 @@ def setup_theme():
 def toggle_theme():
     if st.session_state.theme == 'light':
         st.session_state.theme = 'dark'
+        sns.set_style("darkgrid")
+        sns.set_palette("dark")
     else:
         st.session_state.theme = 'light'
+        sns.set_style("whitegrid")
+        sns.set_palette("deep")
+    
+    # Reset common Seaborn parameters
+    sns.set_context("notebook", font_scale=1.2)
+    plt.rcParams['figure.figsize'] = [10.0, 6.0]

@@ -1,0 +1,15 @@
+{
+  "color": ["#5470C6", "#91CC75", "#EE6666", "#FAC858", "#73C0DE", "#3BA272", "#FC8452", "#9A60B4", "#EA7CCC"],
+  "backgroundColor": "#ffffff",
+  "textStyle": {},
+  "title": {
+    "textStyle": {
+      "color": "#333333"
+    }
+  },
+  "toolbox": {
+    "iconStyle": {
+      "borderColor": "#999999"
+    }
+  }
+}

@@ -129,6 +129,23 @@ def centered_table_css():
         margin-bottom: 1.5rem;
         text-align: center;
     }
+    /* File upload validation styling */
+    .validation-success {
+        background-color: #d4edda;
+        color: #155724;
+        padding: 10px;
+        border-radius: 5px;
+        margin: 10px 0;
+        border-left: 4px solid #28a745;
+    }
+    .validation-error {
+        background-color: #f8d7da;
+        color: #721c24;
+        padding: 10px;
+        border-radius: 5px;
+        margin: 10px 0;
+        border-left: 4px solid #dc3545;
+    }
     /* Dark mode support */
     @media (prefers-color-scheme: dark) {
         .platform-content {
@@ -149,6 +166,53 @@ def centered_table_css():
     </style>
     """
 
+def validate_host_file(df):
+    """Validate if the uploaded file has the required columns"""
+    required_columns = [
+        'UniqueNo', 'Hostname', 'UserName', 'OS Version', 
+        'Sensor Version', 'Site', 'OU', 'Detect MALAYSIA TIME FORMULA'
+    ]
+    
+    validation_results = {
+        'is_valid': True,
+        'missing_columns': [],
+        'found_columns': [],
+        'total_rows': len(df)
+    }
+    
+    for col in required_columns:
+        if col in df.columns:
+            validation_results['found_columns'].append(col)
+        else:
+            validation_results['missing_columns'].append(col)
+            validation_results['is_valid'] = False
+    
+    return validation_results
+
+def display_validation_results(validation_results):
+    """Display validation results with green ticks and red crosses"""
+    st.markdown("### 📋 Template Validation Report")
+    
+    required_columns = [
+        'UniqueNo', 'Hostname', 'UserName', 'OS Version', 
+        'Sensor Version', 'Site', 'OU', 'Detect MALAYSIA TIME FORMULA'
+    ]
+    
+    for col in required_columns:
+        if col in validation_results['found_columns']:
+            st.markdown(f'<div class="validation-success">✅ Found required column: "{col}"</div>', 
+                       unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="validation-error">❌ Missing required column: "{col}"</div>', 
+                       unsafe_allow_html=True)
+    
+    if validation_results['is_valid']:
+        st.success(f"✅ File validation successful! Found {validation_results['total_rows']} data rows.")
+        return True
+    else:
+        st.error("❌ File validation failed! Please ensure your file contains all required columns.")
+        return False
+
 def host_analysis_dashboard():
     # Apply the current theme
     plt_style = setup_theme()
@@ -168,6 +232,7 @@ def host_analysis_dashboard():
             label_visibility="collapsed"
         )
         show_definitions = st.checkbox("Show Chart Definitions and Use Cases", value=False)
+        
         with st.expander("📊 Visualization Settings"):
             st.markdown("### Customize Chart Appearance")
             col1, col2 = st.columns(2)
@@ -182,75 +247,108 @@ def host_analysis_dashboard():
                 show_percentages = st.checkbox("Show Percentages", value=True)
                 show_values = st.checkbox("Show Values", value=True)
                 show_labels = st.checkbox("Show Labels", value=True)
-        with st.expander("📋 Data Input Instructions"):
+        
+        with st.expander("📋 Required File Format"):
             st.write("""
-            ### How to Use This Dashboard
+            ### Required Columns
             
-            This dashboard analyzes host-based security data.
+            Your CSV file must contain these exact column names:
             
-            Enter your host data in the text area below. Each row should represent one detection.
-            The expected format is a table with the following columns (tab or multiple spaces separated):
+            ✅ **UniqueNo** - Unique identifier for each detection  
+            ✅ **Hostname** - Computer/Host name where detection occurred  
+            ✅ **UserName** - User account name associated with the detection  
+            ✅ **OS Version** - Operating system version (e.g., Windows 10, Windows 11)  
+            ✅ **Sensor Version** - Security sensor/agent version number  
+            ✅ **Site** - Physical location or site name  
+            ✅ **OU** - Organizational Unit in Active Directory  
+            ✅ **Detect MALAYSIA TIME FORMULA** - Detection timestamp (DD/MM/YYYY HH:MM format)  
             
-            ```
-            UniqueNo | Hostname | UserName | OS Version | Sensor Version | Site | OU | Detect MALAYSIA TIME FORMULA
-            ```
-            
-            For Detect MALAYSIA TIME FORMULA, use the format: dd/mm/yyyy hh:mm
-            For example: 28/2/2025 15:03
-            
-            The dashboard will visualize:
-            1. Hosts with Most Detections
-            2. Users with Most Detections
-            3. Platform with Most Detections
-            4. Hosts with Sensor Version status
-            5. Most host date detection activity
-            
-            Sample data is shown in the text area.
+            **Note:** Column names must match exactly (case-sensitive).
             """)
-        # Input form for manual data entry
-        st.markdown("### Enter Host Data")
-        sample_data = """UniqueNo\tHostname\tUserName\tOS Version\tSensor Version\tSite\tOU\tDetect MALAYSIA TIME FORMULA
-4\taabbcc\tali\tWindows 10\t7.23.19508.0\tKuantan\tKUANTAN,EAST_COAST,BRANCHES,EndUsers\t28/2/2025 15:03
-9\taasfsx\tabu\tWindows 11\t7.23.19508.0\tKuching\tKUCHING,SARAWAK,BRANCHES,EndUsers\t25/2/2025 14:57
-17\tacsre\tacong\tWindows 10\t7.23.19508.0\tJohor-Bahru\tZTEMP,HQ,EndUsers\t21/2/2025 10:54
-66\tfsawd\tboboy\tWindows 7\t7.16.18613.0\tHQ\tLAHAD_DATU,SABAH,BRANCHES,EndUsers\t3/2/2025 8:06"""
-        host_data_input = st.text_area(
-            "Host Data",
-            value=sample_data,
-            height=300,
-            help="Enter host data in the format shown"
+        
+        # File upload section
+        st.markdown("### 📁 Upload Host Data File")
+        uploaded_file = st.file_uploader(
+            "Choose CSV file", 
+            type=['csv'],
+            help="Upload a CSV file with host detection data"
         )
-        submit_button = st.button(label="Generate Dashboard", type="primary")
-        # Executive Summary Editor (populated after data processing)
+        
+        # Download sample template
+        if st.button("📥 Download Sample Template"):
+            sample_data = {
+                'UniqueNo': [4, 9, 17, 66],
+                'Hostname': ['aabbcc', 'aasfsx', 'acsre', 'fsawd'],
+                'UserName': ['ali', 'abu', 'acong', 'boboy'],
+                'OS Version': ['Windows 10', 'Windows 11', 'Windows 10', 'Windows 7'],
+                'Sensor Version': ['7.23.19508.0', '7.23.19508.0', '7.23.19508.0', '7.16.18613.0'],
+                'Site': ['Kuantan', 'Kuching', 'Johor-Bahru', 'HQ'],
+                'OU': ['KUANTAN,EAST_COAST,BRANCHES,EndUsers', 'KUCHING,SARAWAK,BRANCHES,EndUsers', 'ZTEMP,HQ,EndUsers', 'LAHAD_DATU,SABAH,BRANCHES,EndUsers'],
+                'Detect MALAYSIA TIME FORMULA': ['28/2/2025 15:03', '25/2/2025 14:57', '21/2/2025 10:54', '3/2/2025 8:06']
+            }
+            sample_df = pd.DataFrame(sample_data)
+            csv_data = sample_df.to_csv(index=False)
+            st.download_button(
+                label="Download",
+                data=csv_data,
+                file_name="host_analysis_sample_template.csv",
+                mime="text/csv"
+            )
+        
+        # Generate button
+        generate_button = st.button(
+            label="🚀 Generate Dashboard", 
+            type="primary",
+            disabled=(uploaded_file is None)
+        )
+        
+        # Executive Summary section in sidebar
         st.header("📋 Executive Summary")
-        if 'executive_summary' not in st.session_state:
-            st.session_state.executive_summary = ""
-        edited_summary = st.text_area(
-            "Edit Executive Summary", 
-            value=st.session_state.executive_summary,
-            height=200,
-            help="Edit the executive summary here. It will be displayed at the bottom of the dashboard."
-        )
-        st.session_state.executive_summary = edited_summary
+        st.write("The executive summary will be generated automatically based on the analysis.")
 
     # ========== MAIN DASHBOARD AREA ==========
 
     # Title with report period
     st.markdown(f"<h1 class='dashboard-title'>Host Analysis Dashboard - {report_period}</h1>", unsafe_allow_html=True)
 
-    if submit_button:
+    # Show file upload status
+    if uploaded_file is None:
+        st.info("👈 Please upload a CSV file in the sidebar to begin analysis")
+        st.markdown("""
+        ### Welcome to Host Analysis Dashboard
+        
+        This dashboard provides comprehensive analysis of host-based security detections.
+        
+        **To get started:**
+        1. Download the sample template from the sidebar
+        2. Prepare your data in the same format
+        3. Upload your CSV file
+        4. Click "Generate Dashboard"
+        
+        **The dashboard will show:**
+        - Hosts with Most Detections
+        - Users with Most Detections  
+        - Platform Distribution Analysis
+        - Sensor Version Status
+        - Detection Activity Over Time
+        - Executive Summary with Key Insights
+        """)
+        return
+
+    if generate_button and uploaded_file is not None:
         try:
-            # Convert text input to DataFrame
-            lines = host_data_input.strip().split('\n')
-            headers = lines[0].split('\t')
+            # Read the uploaded file
+            host_data = pd.read_csv(uploaded_file)
             
-            rows = []
-            for line in lines[1:]:
-                values = line.split('\t')
-                if len(values) == len(headers):
-                    rows.append(values)
+            # Validate the file structure
+            validation_results = validate_host_file(host_data)
+            is_valid = display_validation_results(validation_results)
             
-            host_data = pd.DataFrame(rows, columns=headers)
+            if not is_valid:
+                st.stop()
+            
+            # Process the data
+            st.success("✅ File uploaded and validated successfully!")
             
             # Parse detection time
             try:
@@ -281,8 +379,6 @@ def host_analysis_dashboard():
             # Get most recent date
             latest_date = host_data['Detect MALAYSIA TIME FORMULA'].max()
             month_year = latest_date.strftime('%B %Y') if pd.notnull(latest_date) else report_period
-            
-            st.success("Data processed successfully!")
             
             # Display dashboard
             st.markdown(f"<h2 class='sub-header'>Host Overview</h2>", unsafe_allow_html=True)
@@ -498,14 +594,6 @@ def host_analysis_dashboard():
                     top_os_count = os_counts.iloc[0]['Count']
                     top_os_pct = (top_os_count / total_detections * 100) if total_detections > 0 else 0
                 
-                # Create the platform distribution card
-                #st.markdown(f"""
-                #<div class="platform-card">
-                    #<h2>Platform Distribution</h2>
-                    #<p>{top_platform} is the dominant platform with {top_platform_count} detections ({top_platform_pct:.1f}% of total).</p>
-                    #<div class="platform-content">
-                #""", unsafe_allow_html=True)
-                
                 # Create visualizations side by side
                 col1, col2 = st.columns(2)
                 
@@ -551,9 +639,6 @@ def host_analysis_dashboard():
                     )
                     
                     st.plotly_chart(fig_os, use_container_width=True)
-                
-                # End platform content and card
-                st.markdown("</div></div>", unsafe_allow_html=True)
                 
                 # Show OS version table - limited to top_n based on user selection
                 st.markdown(f"<h4>Top {top_n} OS Version Distribution</h4>", unsafe_allow_html=True)
@@ -803,21 +888,11 @@ def host_analysis_dashboard():
             else:
                 summary_text = "Insufficient data to generate a comprehensive executive summary."
             
-            # Let users edit the summary
-            edited_summary = st.text_area("Edit Executive Summary", value=summary_text, height=200)
-            
-            # Display the summary in the light gray container
-            st.markdown(f"""
-            <div class="executive-summary">
-                {edited_summary.replace('\n', '<br>')}
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Also display the summary in a blue container (as shown in your screenshot)
+            # Display the summary in the blue container only
             st.markdown(f"""
             <div class="executive-summary-blue">
-                <ul>
-                    {edited_summary.replace('• ', '<li>').replace('\n• ', '</li><li>').replace('\n', '<br>')}
+                <ul class="summary-bullet">
+                    {summary_text.replace('• ', '<li>').replace('\n• ', '</li><li>').replace('\n', '<br>')}
                 </li></ul>
             </div>
             """, unsafe_allow_html=True)
@@ -825,18 +900,3 @@ def host_analysis_dashboard():
         except Exception as e:
             st.error(f"Error processing data: {e}")
             st.error("Please check your data format and try again.")
-    else:
-        st.info("👈 Configure your settings and input data in the sidebar, then click 'Generate Dashboard' to begin.")
-        st.markdown("""
-        ### Welcome to the Host Analysis Dashboard
-        
-        This dashboard provides insights into host-based security detections in your environment.
-        
-        - **Step 1:** Configure the report period and other settings in the sidebar.
-        - **Step 2:** Enter your host detection data in the text area. Use the sample data as a guide.
-        - **Step 3:** Click on 'Generate Dashboard' to create the analysis dashboard.
-        
-        Explore the dashboard to understand detection trends, identify high-risk hosts and users, and monitor platform and sensor version distributions.
-        
-        For detailed instructions, refer to the Data Input Instructions section in the sidebar.
-        """)

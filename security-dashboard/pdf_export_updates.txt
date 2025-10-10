@@ -1,0 +1,43 @@
+=== IMPLEMENTATION PLAN FOR PDF DASHBOARD UPDATES ===
+
+1. GRADIENT BACKGROUND - DONE ✅
+   - Added .analysis-section class with gradient
+   - linear-gradient(135deg, #e8e8e8 0%, #f5f5f5 100%)
+
+2. B.1 SIDE-BY-SIDE LAYOUT - TO DO
+   Replace current B.1 section (lines 273-374) with:
+
+   col1, col2 = st.columns(2)
+
+   with col1:
+       st.markdown("Critical Detections")
+       # Show 3 teal boxes in a row
+
+   with col2:
+       st.markdown("High Detections")
+       # Show independent bar chart (already exists)
+
+3. SCREEN CAPTURE + PDF EXPORT - TO DO
+   Add at top of dashboard (after title):
+
+   if st.button("📸 Capture & Export as PDF", type="primary"):
+       # Use streamlit-javascript to capture
+       # Or use html2canvas approach
+       # Export to PDF using jsPDF or browser print
+
+4. A4 OPTIMIZATION - TO DO
+   - Reduce all chart heights: 400 → 280px
+   - Reduce margins: t=80, b=80 → t=50, b=50
+   - Reduce section spacing
+
+5. FONT SIZE OPTIMIZATION - TO DO
+   Current → Optimized for A4:
+   - Dashboard title: 16px → 14px
+   - Section headers: 14px → 12px
+   - Chart titles: 11px → 10px
+   - Chart fonts (apply_pdf_chart_styling):
+     - Title: 14pt → 11pt
+     - Axes labels: 12pt → 9pt
+     - Tick labels: 12pt → 8pt
+     - Legend: 12pt → 9pt
+     - Data labels: 12pt → 9pt

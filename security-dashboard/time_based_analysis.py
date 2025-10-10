@@ -309,20 +309,9 @@ def time_based_analysis_dashboard():
         # Generate button
         generate_dashboard = st.button("🚀 Generate Dashboard", type="primary")
         
-        # Executive Summary Editor (will be populated after data processing)
+        # Executive Summary section in sidebar
         st.header("📋 Executive Summary")
-        if 'executive_summary' not in st.session_state:
-            st.session_state.executive_summary = ""
-        
-        edited_summary_raw = st.text_area(
-            "Edit Executive Summary", 
-            value=st.session_state.executive_summary,
-            height=200,
-            help="Edit the executive summary here. It will be displayed at the bottom of the dashboard."
-        )
-        
-        # Update session state
-        st.session_state.executive_summary = edited_summary_raw
+        st.write("The executive summary will be generated automatically based on the analysis.")
     
     # ========== MAIN DASHBOARD AREA ==========
     
@@ -344,18 +333,38 @@ def time_based_analysis_dashboard():
             
             detection_data = pd.DataFrame(rows, columns=headers)
             
-            # Parse detection time
-            try:
-                detection_data['Detect MALAYSIA TIME FORMULA'] = pd.to_datetime(
-                    detection_data['Detect MALAYSIA TIME FORMULA'], 
-                    format='%d/%m/%Y %H:%M',
-                    errors='coerce'
-                )
-            except Exception:
-                detection_data['Detect MALAYSIA TIME FORMULA'] = pd.to_datetime(
-                    detection_data['Detect MALAYSIA TIME FORMULA'], 
-                    errors='coerce'
-                )
+            # Parse detection time with multiple format attempts
+            def parse_datetime_flexible(date_str):
+                """Try multiple datetime formats"""
+                if pd.isna(date_str) or str(date_str).strip() == '':
+                    return pd.NaT
+
+                date_str = str(date_str).strip()
+
+                # Try different formats
+                formats = [
+                    '%d/%m/%Y %H:%M',  # 28/2/2025 15:03
+                    '%Y/%m/%d %H:%M:%S',  # 2025/02/28 15:03:00
+                    '%d/%m/%Y %I:%M:%S %p',  # 28/2/2025 03:03:00 PM
+                    '%Y-%m-%d %H:%M:%S',  # 2025-02-28 15:03:00
+                    '%d-%m-%Y %H:%M',  # 28-02-2025 15:03
+                    '%Y/%m/%d %I:%M:%S %p',  # 2025/02/28 03:03:00 PM
+                ]
+
+                for fmt in formats:
+                    try:
+                        return pd.to_datetime(date_str, format=fmt)
+                    except (ValueError, TypeError):
+                        continue
+
+                # If no format works, try pandas flexible parsing
+                try:
+                    return pd.to_datetime(date_str)
+                except (ValueError, TypeError):
+                    return pd.NaT
+
+            # Apply flexible parsing
+            detection_data['Detect MALAYSIA TIME FORMULA'] = detection_data['Detect MALAYSIA TIME FORMULA'].apply(parse_datetime_flexible)
             
             # Extract date and time components for analysis
             detection_data['Date'] = detection_data['Detect MALAYSIA TIME FORMULA'].dt.date
@@ -792,20 +801,20 @@ def time_based_analysis_dashboard():
             # Executive summary display
             st.markdown("<h2 class='section-header'>📋 Executive Summary</h2>", unsafe_allow_html=True)
             
-            if st.session_state.executive_summary.strip():
-                # Convert bullet points to HTML list
-                summary_lines = st.session_state.executive_summary.strip().split('\n')
-                summary_html = "<ul class='summary-bullet'>"
-                for line in summary_lines:
-                    if line.strip():
-                        clean_line = line.strip().lstrip('• ')
-                        summary_html += f"<li>{clean_line}</li>"
-                summary_html += "</ul>"
-                
-                # Display the summary
-                st.markdown(f"<div class='executive-summary-card'>{summary_html}</div>", unsafe_allow_html=True)
-            else:
-                st.info("📝 Use the sidebar to edit the executive summary after generating the dashboard.")
+            # Create and display executive summary in blue container
+            summary_html = f"""
+            <div class="executive-summary-blue">
+                <ul class="summary-bullet">
+                    <li>Time-based analysis of {total_detections} detections during {report_period} reveals several important patterns.</li>
+                    <li>Detection volume shows Week {peak_week_num} experiencing the highest activity ({peak_week_count} detections).</li>
+                    <li>{business_hours_pct}% of detections occur during business hours (9:00-17:00), with peak activity at {peak_hour}:00.</li>
+                    <li>{weekday_pct}% of detections occur on weekdays, with {peak_day_name} showing the highest frequency ({peak_day_count} detections).</li>
+                    <li>The most recent week showed a {latest_week_change:.1f}% {'increase' if latest_week_change >= 0 else 'decrease'} in detection volume compared to the previous week.</li>
+                    <li>These patterns suggest that security monitoring should be enhanced during {peak_day_name}s around {peak_hour}:00.</li>
+                </ul>
+            </div>
+            """
+            st.markdown(summary_html, unsafe_allow_html=True)
                 
         except Exception as e:
             st.error(f"❌ Error processing data: {e}")
