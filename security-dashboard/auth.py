@@ -6,15 +6,17 @@ Developed by Izami Ariff © 2025
 
 import streamlit as st
 import hashlib
+import os
 from datetime import datetime, timedelta
 
 # ==============================================
 # CONFIGURATION
 # ==============================================
 
-# Default credentials (change these for production!)
-DEFAULT_USERNAME = "admin"
-DEFAULT_PASSWORD = "ThisSOCR3port2026"
+# Credentials from environment variables (secure!)
+# Fallback to defaults only for local development
+DEFAULT_USERNAME = os.getenv("DASHBOARD_USERNAME", "admin")
+DEFAULT_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "ThisSOCR3port2026")
 
 # Session timeout (in minutes)
 SESSION_TIMEOUT_MINUTES = 60
