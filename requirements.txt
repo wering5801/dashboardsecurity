@@ -18,6 +18,9 @@ seaborn>=0.12.0
 openpyxl>=3.1.0
 xlsxwriter>=3.1.0
 
+# PDF Generation
+reportlab>=4.0.0
+
 # Date & Time
 python-dateutil>=2.8.0
 
