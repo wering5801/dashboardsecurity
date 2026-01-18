@@ -1,0 +1,74 @@
+# Falcon Security Dashboard - Docker Ignore File
+# Exclude files and directories from Docker build context
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation (exclude from production)
+*.md
+!README.md
+
+# Test files
+test/
+tests/
+*_test.py
+test_*.py
+
+# Data files (user data should not be in image)
+*.csv
+*.xlsx
+*.xls
+!security-dashboard/sample_ticket_data.csv
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Cloud Run
+.gcloudignore
+
+# Other
+gacha 3070/
+*.bak
