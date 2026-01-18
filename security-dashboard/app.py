@@ -14,9 +14,18 @@ st.set_page_config(
 import pandas as pd
 import numpy as np
 from theme_utils import setup_theme
+from auth import require_authentication
 
 # Configure theme settings
 theme = setup_theme()
+
+# ==============================================
+# AUTHENTICATION - REQUIRED FOR ALL PAGES
+# ==============================================
+# This will show login page if not authenticated
+# and stop execution until user logs in
+if not require_authentication():
+    st.stop()
 
 # Default ECharts options
 def get_default_echarts_options(title, x_label, y_label):

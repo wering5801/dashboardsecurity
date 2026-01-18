@@ -222,7 +222,8 @@ def main_dashboard_report():
     # Check if analysis results are available
     if 'host_analysis_results' not in st.session_state and \
        'detection_analysis_results' not in st.session_state and \
-       'time_analysis_results' not in st.session_state:
+       'time_analysis_results' not in st.session_state and \
+       'ticket_lifecycle_results' not in st.session_state:
         # Show welcome screen
         show_welcome_screen()
         return
@@ -230,6 +231,18 @@ def main_dashboard_report():
     # ============================
     # SIDEBAR CONTROLS
     # ============================
+    # Get ticket data availability
+    ticket_data_available = 'ticket_lifecycle_results' in st.session_state and bool(st.session_state['ticket_lifecycle_results'])
+
+    # Get actual number of months and create month text helper
+    num_months = st.session_state.get('num_months', 3)
+    if num_months == 1:
+        month_text = "Single Month"
+    elif num_months == 2:
+        month_text = "Two Months"
+    else:
+        month_text = "Three Months"
+
     with st.sidebar:
         st.markdown("### 🎯 Dashboard Controls")
         st.markdown("---")
@@ -249,9 +262,13 @@ def main_dashboard_report():
         # Sections to display
         st.markdown("#### 📋 Report Sections")
         show_summary = st.checkbox("📊 Executive Summary", value=True)
-        show_host_analysis = st.checkbox("🖥️ Host Analysis", value=True)
+        show_ticket_lifecycle = st.checkbox("🎫 Ticket Lifecycle Analysis", value=ticket_data_available, disabled=not ticket_data_available, help="Include 3-month ticket status trend analysis")
+        show_host_analysis = st.checkbox("🖥️ Host Security Analysis", value=True)
         show_detection_analysis = st.checkbox("🔍 Detection & Severity", value=True)
         show_time_analysis = st.checkbox("⏰ Time-Based Analysis", value=True)
+
+        if not ticket_data_available:
+            st.caption("💡 Ticket Lifecycle Analysis is disabled (no ticket data available)")
 
         st.markdown("---")
 
@@ -318,22 +335,56 @@ def main_dashboard_report():
         st.markdown('</div>', unsafe_allow_html=True)
 
     # ============================
-    # HOST ANALYSIS SECTION
+    # DYNAMIC SECTION LETTERING
+    # ============================
+    # Calculate section letters dynamically based on what's included
+    section_letters = {}
+    current_letter_index = 0
+    letters = ['A', 'B', 'C', 'D', 'E']
+
+    if show_ticket_lifecycle and 'ticket_lifecycle_results' in st.session_state:
+        section_letters['ticket'] = letters[current_letter_index]
+        current_letter_index += 1
+
+    if show_host_analysis and 'host_analysis_results' in st.session_state:
+        section_letters['host'] = letters[current_letter_index]
+        current_letter_index += 1
+
+    if show_detection_analysis and 'detection_analysis_results' in st.session_state:
+        section_letters['detection'] = letters[current_letter_index]
+        current_letter_index += 1
+
+    if show_time_analysis and 'time_analysis_results' in st.session_state:
+        section_letters['time'] = letters[current_letter_index]
+        current_letter_index += 1
+
+    # ============================
+    # TICKET LIFECYCLE SECTION (DYNAMIC)
+    # ============================
+    if show_ticket_lifecycle and 'ticket_lifecycle_results' in st.session_state:
+        section_letter = section_letters.get('ticket', 'A')
+        render_ticket_lifecycle_section(chart_height, show_data_tables, show_insights, section_letter)
+
+    # ============================
+    # HOST ANALYSIS SECTION (DYNAMIC)
     # ============================
     if show_host_analysis and 'host_analysis_results' in st.session_state:
-        render_host_analysis_section(chart_height, show_data_tables, show_insights)
+        section_letter = section_letters.get('host', 'A')
+        render_host_analysis_section(chart_height, show_data_tables, show_insights, section_letter)
 
     # ============================
-    # DETECTION & SEVERITY SECTION
+    # DETECTION & SEVERITY SECTION (DYNAMIC)
     # ============================
     if show_detection_analysis and 'detection_analysis_results' in st.session_state:
-        render_detection_analysis_section(chart_height, show_data_tables, show_insights)
+        section_letter = section_letters.get('detection', 'B')
+        render_detection_analysis_section(chart_height, show_data_tables, show_insights, section_letter)
 
     # ============================
-    # TIME-BASED ANALYSIS SECTION
+    # TIME-BASED ANALYSIS SECTION (DYNAMIC)
     # ============================
     if show_time_analysis and 'time_analysis_results' in st.session_state:
-        render_time_analysis_section(chart_height, show_data_tables, show_insights)
+        section_letter = section_letters.get('time', 'C')
+        render_time_analysis_section(chart_height, show_data_tables, show_insights, section_letter)
 
     # ============================
     # FOOTER
@@ -383,17 +434,63 @@ def calculate_summary_statistics():
     return stats
 
 
-def render_host_analysis_section(chart_height, show_data_tables, show_insights):
+def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insights, section_letter='A'):
+    """Render Ticket Lifecycle Analysis section"""
+    from pivot_table_builder import create_pivot_table, create_pivot_chart
+
+    st.markdown('<div class="section-container">', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-header"><div class="section-icon">🎫</div><h2 class="section-title">{section_letter}. Ticket Lifecycle Analysis</h2></div>', unsafe_allow_html=True)
+
+    ticket_results = st.session_state['ticket_lifecycle_results']
+
+    # Ticket Status Trend (3-month overview)
+    if 'ticket_status_trend' in ticket_results:
+        st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.1. Ticket Status Count Across {month_text} (Open, Pending, On-hold, Closed)</h3>', unsafe_allow_html=True)
+
+        config = {
+            'rows': ['Month'],
+            'columns': ['Status'],
+            'values': ['Count'],
+            'aggregation': 'sum',
+            'chart_type': 'Bar Chart',
+            'use_monthly_colors': True
+        }
+
+        pivot_table = create_pivot_table(ticket_results['ticket_status_trend'], config, 'ticket_status_trend')
+
+        if pivot_table is not None and not pivot_table.empty:
+            chart = create_pivot_chart(pivot_table, 'Bar Chart', chart_height, config, 'ticket_status_trend')
+            if chart:
+                st.plotly_chart(chart, use_container_width=True)
+
+            if show_data_tables:
+                with st.expander("📊 View Data Table"):
+                    st.dataframe(ticket_results['ticket_status_trend'], use_container_width=True)
+
+        if show_insights:
+            st.markdown("""
+                <div class="insight-box">
+                    <strong>💡 Key Insight:</strong> Track ticket resolution trends across multiple months to identify patterns in incident response times and workload management.
+                </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def render_host_analysis_section(chart_height, show_data_tables, show_insights, section_letter='A'):
     """Render Host Analysis section with enhanced UI"""
     st.markdown('<div class="section-container">', unsafe_allow_html=True)
-    st.markdown('<div class="section-header"><div class="section-icon">🖥️</div><h2 class="section-title">Host Analysis</h2></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-header"><div class="section-icon">🖥️</div><h2 class="section-title">{section_letter}. Host Security Analysis</h2></div>', unsafe_allow_html=True)
 
     host_results = st.session_state['host_analysis_results']
 
-    # A1. Overview - Key Metrics
+    # Overview - Key Metrics
     if 'overview_key_metrics' in host_results:
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown('<h3 class="analysis-title">A1. Overview - Key Metrics</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.1. Overview - Key Metrics</h3>', unsafe_allow_html=True)
         display_analysis_chart(
             host_results['overview_key_metrics'],
             analysis_key='overview_key_metrics',
@@ -412,10 +509,10 @@ def render_host_analysis_section(chart_height, show_data_tables, show_insights):
         )
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # A2. Top Hosts
+    # Top Hosts
     if 'overview_top_hosts' in host_results:
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown('<h3 class="analysis-title">A2. Top Hosts with Most Detections</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.2. Top Hosts with Most Detections</h3>', unsafe_allow_html=True)
         display_analysis_chart(
             host_results['overview_top_hosts'],
             analysis_key='overview_top_hosts',
@@ -442,10 +539,10 @@ def render_host_analysis_section(chart_height, show_data_tables, show_insights):
         )
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # A3. User Analysis
+    # User Analysis
     if 'user_analysis' in host_results:
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown('<h3 class="analysis-title">A3. User Analysis</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.3. User Analysis</h3>', unsafe_allow_html=True)
         display_analysis_chart(
             host_results['user_analysis'],
             analysis_key='user_analysis',
@@ -472,10 +569,10 @@ def render_host_analysis_section(chart_height, show_data_tables, show_insights):
         )
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # A4. Sensor Analysis
+    # Sensor Analysis
     if 'sensor_analysis' in host_results:
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown('<h3 class="analysis-title">A4. Sensor Analysis</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.4. Sensor Analysis</h3>', unsafe_allow_html=True)
         display_analysis_chart(
             host_results['sensor_analysis'],
             analysis_key='sensor_analysis',
@@ -496,24 +593,24 @@ def render_host_analysis_section(chart_height, show_data_tables, show_insights):
     st.markdown('</div>', unsafe_allow_html=True)
 
 
-def render_detection_analysis_section(chart_height, show_data_tables, show_insights):
+def render_detection_analysis_section(chart_height, show_data_tables, show_insights, section_letter='B'):
     """Render Detection & Severity Analysis section"""
     st.markdown('<div class="section-container">', unsafe_allow_html=True)
-    st.markdown('<div class="section-header"><div class="section-icon">🔍</div><h2 class="section-title">Detection & Severity Analysis</h2></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-header"><div class="section-icon">🔍</div><h2 class="section-title">{section_letter}. Detection & Severity Analysis</h2></div>', unsafe_allow_html=True)
 
     detection_results = st.session_state['detection_analysis_results']
 
-    # B1. Critical and High Detection Overview
+    # Critical and High Detection Overview
     if 'critical_high_overview' in detection_results:
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown('<h3 class="analysis-title">B1. Critical and High Detection Overview</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.1. Critical and High Detection Overview</h3>', unsafe_allow_html=True)
         create_detection_key_metrics_cards(detection_results['critical_high_overview'])
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # B2. Detection Count by Severity
+    # Detection Count by Severity
     if 'severity_trend' in detection_results:
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown('<h3 class="analysis-title">B2. Detection Count by Severity</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.2. Detection Count by Severity</h3>', unsafe_allow_html=True)
         display_analysis_chart(
             detection_results['severity_trend'],
             analysis_key='severity_trend',
@@ -531,10 +628,10 @@ def render_detection_analysis_section(chart_height, show_data_tables, show_insig
         )
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # B3. Geographic Analysis
+    # Geographic Analysis
     if 'country_analysis' in detection_results:
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown('<h3 class="analysis-title">B3. Detection Count Across Country</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.3. Detection Count Across Country</h3>', unsafe_allow_html=True)
         display_analysis_chart(
             detection_results['country_analysis'],
             analysis_key='country_analysis',
@@ -553,10 +650,10 @@ def render_detection_analysis_section(chart_height, show_data_tables, show_insig
         )
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # B4. Files with Most Detections
+    # Files with Most Detections
     if 'file_analysis' in detection_results:
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown('<h3 class="analysis-title">B4. Files with Most Detections</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.4. Files with Most Detections</h3>', unsafe_allow_html=True)
         display_analysis_chart(
             detection_results['file_analysis'],
             analysis_key='file_analysis',
@@ -583,10 +680,10 @@ def render_detection_analysis_section(chart_height, show_data_tables, show_insig
         )
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # B5. Tactics by Severity
+    # Tactics by Severity
     if 'tactics_by_severity' in detection_results:
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown('<h3 class="analysis-title">B5. Tactics by Severity</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.5. Tactics by Severity</h3>', unsafe_allow_html=True)
         display_analysis_chart(
             detection_results['tactics_by_severity'],
             analysis_key='tactics_by_severity',
@@ -605,10 +702,10 @@ def render_detection_analysis_section(chart_height, show_data_tables, show_insig
         )
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # B6. Technique by Severity
+    # Technique by Severity
     if 'technique_by_severity' in detection_results:
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown('<h3 class="analysis-title">B6. Technique by Severity</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.6. Technique by Severity</h3>', unsafe_allow_html=True)
         display_analysis_chart(
             detection_results['technique_by_severity'],
             analysis_key='technique_by_severity',
@@ -638,17 +735,17 @@ def render_detection_analysis_section(chart_height, show_data_tables, show_insig
     st.markdown('</div>', unsafe_allow_html=True)
 
 
-def render_time_analysis_section(chart_height, show_data_tables, show_insights):
+def render_time_analysis_section(chart_height, show_data_tables, show_insights, section_letter='C'):
     """Render Time-Based Analysis section"""
     st.markdown('<div class="section-container">', unsafe_allow_html=True)
-    st.markdown('<div class="section-header"><div class="section-icon">⏰</div><h2 class="section-title">Time-Based Analysis</h2></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-header"><div class="section-icon">⏰</div><h2 class="section-title">{section_letter}. Time-Based Analysis</h2></div>', unsafe_allow_html=True)
 
     time_results = st.session_state['time_analysis_results']
 
-    # C1. Daily Trends
+    # Daily Trends
     if 'daily_trends' in time_results:
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown('<h3 class="analysis-title">C1. Daily Trends</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.1. Daily Trends</h3>', unsafe_allow_html=True)
         display_analysis_chart(
             time_results['daily_trends'],
             analysis_key='daily_trends',
@@ -674,10 +771,10 @@ def render_time_analysis_section(chart_height, show_data_tables, show_insights):
         )
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # C2. Hourly Analysis
+    # Hourly Analysis
     if 'hourly_analysis' in time_results:
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown('<h3 class="analysis-title">C2. Hourly Analysis</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.2. Hourly Analysis</h3>', unsafe_allow_html=True)
         display_analysis_chart(
             time_results['hourly_analysis'],
             analysis_key='hourly_analysis',
@@ -695,10 +792,10 @@ def render_time_analysis_section(chart_height, show_data_tables, show_insights):
         )
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # C3. Day of Week
+    # Day of Week
     if 'day_of_week' in time_results:
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown('<h3 class="analysis-title">C3. Day of Week</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.3. Day of Week</h3>', unsafe_allow_html=True)
         display_analysis_chart(
             time_results['day_of_week'],
             analysis_key='day_of_week',

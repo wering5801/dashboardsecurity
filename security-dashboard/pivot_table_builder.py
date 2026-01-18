@@ -25,7 +25,8 @@ def pivot_table_builder_dashboard():
     # Check if analysis results are available
     if 'host_analysis_results' not in st.session_state and \
        'detection_analysis_results' not in st.session_state and \
-       'time_analysis_results' not in st.session_state:
+       'time_analysis_results' not in st.session_state and \
+       'ticket_lifecycle_results' not in st.session_state:
         st.warning("⚠️ No analysis results available. Please use the Falcon Generator to upload and process data first.")
         st.info("💡 Go to 'Falcon Data Generator' in the sidebar, upload your files, and click 'Process All Months and Generate Templates'. The analysis results will be generated automatically.")
         return
@@ -37,6 +38,8 @@ def pivot_table_builder_dashboard():
         # Step 1: Select Analysis Category
         st.subheader("📁 Step 1: Select Analysis Category")
         available_categories = []
+        if 'ticket_lifecycle_results' in st.session_state:
+            available_categories.append("Ticket Lifecycle Analysis")
         if 'host_analysis_results' in st.session_state:
             available_categories.append("Host Analysis")
         if 'detection_analysis_results' in st.session_state:
@@ -52,6 +55,7 @@ def pivot_table_builder_dashboard():
 
         # Map category to results
         category_map = {
+            "Ticket Lifecycle Analysis": 'ticket_lifecycle_results',
             "Host Analysis": 'host_analysis_results',
             "Detection & Severity Analysis": 'detection_analysis_results',
             "Time-Based Analysis": 'time_analysis_results'
@@ -68,6 +72,12 @@ def pivot_table_builder_dashboard():
 
         # Create friendly names
         friendly_names = {
+            # Ticket Lifecycle Analysis
+            'ticket_status_trend': '1. Ticket Status Trend',
+            'ticket_status_pivot': '2. Ticket Status Pivot',
+            'monthly_summary': '3. Monthly Summary',
+            'monthly_totals': '4. Monthly Totals',
+            'status_distribution': '5. Status Distribution',
             # Host Analysis
             'overview_key_metrics': '1. Overview - KEY METRICS',
             'overview_top_hosts': '2. Overview - TOP HOSTS WITH DETECTIONS',
@@ -114,6 +124,50 @@ def pivot_table_builder_dashboard():
 
         # Define default field configurations for each analysis
         default_configs = {
+            # Ticket Lifecycle Analysis
+            'ticket_status_trend': {
+                'rows': ['Month'],
+                'columns': ['Status'],
+                'values': ['Count'],
+                'aggregation': 'sum',
+                'chart_type': 'Bar Chart',
+                'sort_by': 'Month',
+                'use_ticket_status_colors': True,  # Auto-enable ticket status colors
+                'use_monthly_colors': False
+            },
+            'ticket_status_pivot': {
+                'rows': ['Status'],
+                'columns': ['Month'],
+                'values': ['Count'],
+                'aggregation': 'sum',
+                'chart_type': 'Bar Chart',
+                'use_monthly_colors': True
+            },
+            'monthly_summary': {
+                'rows': ['Month'],
+                'columns': ['Status'],
+                'values': ['Count'],
+                'aggregation': 'sum',
+                'chart_type': 'Bar Chart',
+                'use_ticket_status_colors': True
+            },
+            'monthly_totals': {
+                'rows': ['Month'],
+                'columns': [],
+                'values': ['Total Tickets'],
+                'aggregation': 'sum',
+                'chart_type': 'Line Chart',
+                'use_monthly_colors': False
+            },
+            'status_distribution': {
+                'rows': ['Status'],
+                'columns': [],
+                'values': ['Count'],
+                'aggregation': 'sum',
+                'chart_type': 'Pie Chart',
+                'use_ticket_status_colors': True
+            },
+
             # Host Analysis
             'overview_key_metrics': {
                 'rows': ['Month'],
@@ -312,6 +366,7 @@ def pivot_table_builder_dashboard():
                 st.session_state['pivot_config']['filters'] = default.get('filters', {})
                 st.session_state['pivot_config']['top_n'] = default.get('top_n', None)
                 st.session_state['pivot_config']['use_severity_colors'] = default.get('use_severity_colors', False)
+                st.session_state['pivot_config']['use_ticket_status_colors'] = default.get('use_ticket_status_colors', False)
                 st.session_state['pivot_config']['use_monthly_colors'] = default.get('use_monthly_colors', True)
 
                 st.info(f"💡 Default configuration loaded for {selected_analysis_display}. You can customize the fields below.")
@@ -554,6 +609,29 @@ def pivot_table_builder_dashboard():
 
         if use_severity_colors:
             st.caption("🔴 Critical  🟠 High  🔵 Medium  🟢 Low")
+
+        # Ticket Status Color Settings
+        st.markdown("---")
+        st.markdown("**🎫 Ticket Status Colors**")
+
+        # Auto-detect if Status field exists in the data
+        has_status_field = False
+        if df is not None and not df.empty:
+            status_columns = [col for col in df.columns if 'status' in col.lower()]
+            has_status_field = len(status_columns) > 0
+
+        # Get default from config or auto-enable if status detected
+        default_use_ticket_status_colors = st.session_state['pivot_config'].get('use_ticket_status_colors', has_status_field)
+
+        use_ticket_status_colors = st.checkbox(
+            "Apply Ticket Status Colors",
+            value=default_use_ticket_status_colors,
+            help="Automatically color charts by ticket status (Closed=Green, Open=Red, On-hold=Yellow, Pending=Grey)"
+        )
+        st.session_state['pivot_config']['use_ticket_status_colors'] = use_ticket_status_colors
+
+        if use_ticket_status_colors:
+            st.caption("🟢 Closed  🔴 Open  🟡 On-hold  ⚫ Pending")
 
         # Monthly Color Settings
         st.markdown("---")
@@ -1477,6 +1555,13 @@ def create_pivot_chart(pivot_table, chart_type, height, config, selected_analysi
             'month_3': '#FFC000'    # Gold (latest month)
         }
 
+        TICKET_STATUS_COLORS = {
+            'Closed': '#70AD47',    # Green (resolved)
+            'Open': '#DC143C',      # Red (needs attention)
+            'On-hold': '#FFC000',   # Yellow (paused)
+            'Pending': '#A9A9A9'    # Grey (waiting)
+        }
+
         # Remove 'Total' row/column for cleaner visualization
         clean_pivot = pivot_table.copy()
 
@@ -1529,16 +1614,22 @@ def create_pivot_chart(pivot_table, chart_type, height, config, selected_analysi
         severity_keywords = ['critical', 'high', 'medium', 'low']
         has_severity = any(any(keyword in str(col).lower() for keyword in severity_keywords) for col in plot_cols)
 
+        # Check if columns contain ticket status (Open, Pending, On-hold, Closed)
+        ticket_status_keywords = ['open', 'pending', 'on-hold', 'closed']
+        has_ticket_status = any(any(keyword in str(col).lower() for keyword in ticket_status_keywords) for col in plot_cols)
+
         # Determine which color scheme to use
         use_severity_colors = False
+        use_ticket_status_colors = False
         use_monthly_colors = False
         color_mapping = {}
 
-        # Check if user enabled severity colors in settings
+        # Check if user enabled color schemes in settings
         user_enabled_severity_colors = config.get('use_severity_colors', False)
+        user_enabled_ticket_status_colors = config.get('use_ticket_status_colors', False)
         user_enabled_monthly_colors = config.get('use_monthly_colors', True)  # Default True for backwards compatibility
 
-        # Priority: Severity colors > Monthly colors
+        # Priority: Severity colors > Ticket Status colors > Monthly colors
         if user_enabled_severity_colors and has_severity:
             # Use severity colors for charts with severity data
             use_severity_colors = True
@@ -1552,6 +1643,20 @@ def create_pivot_chart(pivot_table, chart_type, height, config, selected_analysi
                     color_mapping[col] = SEVERITY_COLORS['Medium']
                 elif 'low' in col_str.lower():
                     color_mapping[col] = SEVERITY_COLORS['Low']
+
+        elif user_enabled_ticket_status_colors and has_ticket_status:
+            # Use ticket status colors for charts with ticket status data
+            use_ticket_status_colors = True
+            for col in plot_cols:
+                col_str = str(col)
+                if 'closed' in col_str.lower():
+                    color_mapping[col] = TICKET_STATUS_COLORS['Closed']
+                elif 'open' in col_str.lower():
+                    color_mapping[col] = TICKET_STATUS_COLORS['Open']
+                elif 'on-hold' in col_str.lower() or 'onhold' in col_str.lower():
+                    color_mapping[col] = TICKET_STATUS_COLORS['On-hold']
+                elif 'pending' in col_str.lower():
+                    color_mapping[col] = TICKET_STATUS_COLORS['Pending']
 
         elif user_enabled_monthly_colors and has_month and columns:
             # Use monthly colors for month trend charts (without severity)

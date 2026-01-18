@@ -8,6 +8,7 @@ import re
 from host_analysis_generator import generate_host_analysis
 from detection_severity_generator import generate_detection_severity_analysis
 from time_analysis_generator import generate_time_analysis
+from ticket_lifecycle_generator import generate_ticket_lifecycle_analysis, create_placeholder_ticket_data
 
 # Dummy data generation function removed - no longer needed
 
@@ -120,9 +121,15 @@ def falcon_generator_dashboard():
                     help="Select the month for this data set"
                 )
             with col2:
+                # Get current year and create a range from current year - 1 to current year + 3
+                from datetime import datetime
+                current_year = datetime.now().year
+                year_options = list(range(current_year - 1, current_year + 4))  # e.g., 2024-2029 if current is 2025
+
                 year = st.selectbox(
                     f"Select Year {i+1}",
-                    options=[2025, 2024, 2023, 2026],
+                    options=year_options,
+                    index=1,  # Default to current year (second option in the list)
                     key=f"year_{i}",
                     help="Select the year for this data set"
                 )
@@ -187,6 +194,139 @@ def falcon_generator_dashboard():
             'file3': file3,
             'file4': file4
         })
+
+    # ============================================
+    # TICKET LIFECYCLE DATA UPLOAD (OPTIONAL)
+    # ============================================
+    st.markdown("---")
+    st.header("🎫 Ticket Lifecycle Data (Optional)")
+    st.markdown("""
+    **Optional Section:** Upload ticket data for lifecycle analysis (Open, Pending, On-hold, Closed status tracking).
+
+    You can either:
+    - **Upload a CSV file** with ticket data containing these **required columns**:
+      - `Period` (e.g., "October 2025", "November 2025", "December 2025")
+      - `Status` (must be one of: "Open", "Pending", "On-hold", "Closed")
+    - **Use placeholder data** (you can edit the numbers later in `ticket_lifecycle_generator.py`)
+    - **Skip this section** if you don't need ticket lifecycle analysis
+
+    📄 **Sample CSV Format:** See `sample_ticket_data.csv` in the project folder for an example file format.
+
+    **Additional columns (optional):** TicketID, CreatedDate, Category, Priority
+    """)
+
+    use_ticket_data = st.checkbox("Include Ticket Lifecycle Analysis", value=False)
+    ticket_upload_file = None
+
+    if use_ticket_data:
+        # Show format guide
+        with st.expander("📖 View CSV Format Requirements", expanded=False):
+            st.markdown("""
+            **Required Columns:**
+            - `Period`: Month name (e.g., "October 2025", "November 2025", "December 2025")
+            - `Status`: One of "Open", "Pending", "On-hold", "Closed" (case-sensitive)
+
+            **Sample Format:**
+            ```
+            TicketID,Period,Status,CreatedDate,Category,Priority
+            TKT-00001,October 2025,Open,2025-10-05,Security Incident,High
+            TKT-00002,October 2025,Pending,2025-10-08,Security Incident,High
+            TKT-00003,October 2025,On-hold,2025-10-10,Security Incident,Medium
+            TKT-00004,October 2025,Closed,2025-10-03,Security Incident,Critical
+            TKT-00005,November 2025,Open,2025-11-02,Security Incident,High
+            ```
+
+            📄 **Full documentation:** See `TICKET_DATA_FORMAT.md` for complete guide
+            📥 **Sample file:** Download `sample_ticket_data.csv` from the project folder
+            """)
+
+        ticket_data_option = st.radio(
+            "Choose ticket data source:",
+            ["Upload CSV file", "Use placeholder data"],
+            help="Select how you want to provide ticket data"
+        )
+
+        if ticket_data_option == "Upload CSV file":
+            ticket_upload_file = st.file_uploader(
+                "Upload Ticket Data CSV",
+                type=['csv'],
+                key="ticket_upload_file",
+                help="CSV file must contain 'Period' and 'Status' columns"
+            )
+
+            if ticket_upload_file:
+                st.success("✅ Ticket data file uploaded successfully!")
+        else:
+            st.info("📝 Customize your placeholder ticket data below:")
+
+            # Month-specific ticket configuration
+            st.markdown("#### 🎯 Ticket Count Configuration")
+            st.markdown("Configure ticket counts for each month:")
+
+            # Store ticket data per month
+            ticket_config_per_month = {}
+
+            for i in range(num_months):
+                month_key = f"month_{i}"
+                with st.expander(f"📅 {month_data[i]['period']} - Ticket Configuration", expanded=(i == 0)):
+                    st.markdown(f"**Configure tickets for {month_data[i]['period']}:**")
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        open_count = st.number_input(
+                            "🟢 Open Tickets",
+                            min_value=0,
+                            max_value=1000,
+                            value=25,
+                            step=1,
+                            key=f"open_tickets_{month_key}"
+                        )
+                        pending_count = st.number_input(
+                            "🟡 Pending Tickets",
+                            min_value=0,
+                            max_value=1000,
+                            value=15,
+                            step=1,
+                            key=f"pending_tickets_{month_key}"
+                        )
+                    with col2:
+                        onhold_count = st.number_input(
+                            "🟠 On-hold Tickets",
+                            min_value=0,
+                            max_value=1000,
+                            value=10,
+                            step=1,
+                            key=f"onhold_tickets_{month_key}"
+                        )
+                        closed_count = st.number_input(
+                            "🔵 Closed Tickets",
+                            min_value=0,
+                            max_value=1000,
+                            value=50,
+                            step=1,
+                            key=f"closed_tickets_{month_key}"
+                        )
+
+                    # Show month summary
+                    month_total = open_count + pending_count + onhold_count + closed_count
+                    st.success(f"📊 Total tickets for {month_data[i]['period']}: **{month_total}**")
+
+                    # Store configuration
+                    ticket_config_per_month[month_data[i]['period']] = {
+                        'Open': open_count,
+                        'Pending': pending_count,
+                        'On-hold': onhold_count,
+                        'Closed': closed_count
+                    }
+
+            # Overall summary
+            total_all_months = sum(
+                sum(config.values()) for config in ticket_config_per_month.values()
+            )
+            st.info(f"📈 **Grand Total**: {total_all_months} tickets across {num_months} month(s)")
+
+            # Store in session state for processing
+            st.session_state['ticket_config_per_month'] = ticket_config_per_month
 
     if st.button("🚀 Process All Months and Generate Templates"):
         # Create status container at the top for all notifications
@@ -272,6 +412,34 @@ def falcon_generator_dashboard():
                     st.session_state['time_analysis_results'] = time_results
                     with status_container:
                         st.success(f"✅ Time Analysis: {len(time_results)} analysis outputs generated for {actual_num_months} month(s)")
+
+                # ============================================
+                # Generate Ticket Lifecycle Analysis (if enabled)
+                # ============================================
+                if use_ticket_data:
+                    try:
+                        if ticket_data_option == "Upload CSV file" and ticket_upload_file:
+                            # Read uploaded ticket data
+                            ticket_df = pd.read_csv(ticket_upload_file)
+                            with status_container:
+                                st.info(f"📊 Processing uploaded ticket data: {len(ticket_df)} records")
+                        else:
+                            # Generate placeholder data with per-month custom counts
+                            ticket_counts_per_month = st.session_state.get('ticket_config_per_month', {})
+                            ticket_df = create_placeholder_ticket_data(processed_months, ticket_counts_per_month)
+                            with status_container:
+                                st.info(f"📝 Generated placeholder ticket data: {len(ticket_df)} records")
+
+                        # Generate ticket lifecycle analysis
+                        ticket_results = generate_ticket_lifecycle_analysis(ticket_df, actual_num_months)
+                        st.session_state['ticket_lifecycle_results'] = ticket_results
+                        with status_container:
+                            st.success(f"✅ Ticket Lifecycle Analysis: {len(ticket_results)} analysis outputs generated")
+
+                    except Exception as e:
+                        with status_container:
+                            st.error(f"❌ Error generating ticket lifecycle analysis: {str(e)}")
+                            st.warning("Ticket analysis failed, but other templates are still available.")
 
                 with status_container:
                     st.success(f"🎉 All analysis results generated successfully for {actual_num_months} month(s)! Ready for Pivot Table Builder.")

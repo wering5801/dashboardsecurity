@@ -226,347 +226,432 @@ def falcon_dashboard_pdf_layout():
     host_data = st.session_state.get('host_analysis_results', {})
     detection_data = st.session_state.get('detection_analysis_results', {})
     time_data = st.session_state.get('time_analysis_results', {})
+    ticket_data = st.session_state.get('ticket_lifecycle_results', {})
 
     # Extract months dynamically from data
     months = extract_months_from_data(host_data, detection_data, time_data)
 
+    # Get actual number of months and create month text helper
+    num_months = st.session_state.get('num_months', len(months))
+    if num_months == 1:
+        month_text = "Single Month"
+    elif num_months == 2:
+        month_text = "Two Months"
+    else:
+        month_text = "Three Months"
+
     # ============================================
-    # SECTION A: HOST SECURITY ANALYSIS
+    # SIDEBAR: SECTION SELECTION
     # ============================================
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### 📊 Report Sections")
+        st.markdown("Select sections to include in the report:")
 
-    st.markdown('<div class="section-header">A. Host Security Analysis</div>', unsafe_allow_html=True)
-    st.markdown('<div class="analysis-section">', unsafe_allow_html=True)
+        include_ticket_lifecycle = st.checkbox("Ticket Lifecycle Analysis", value=False, help="Include 3-month ticket status trend analysis", disabled=not ticket_data)
+        include_host_analysis = st.checkbox("Host Security Analysis", value=True, help="Include host security metrics")
+        include_detection_analysis = st.checkbox("Detection and Severity Analysis", value=True, help="Include detection and severity trends")
+        include_time_analysis = st.checkbox("Time-Based Analysis", value=True, help="Include time-based detection patterns")
 
-    # A.1 Overview Detection (full width)
-    st.markdown('<div class="chart-title">A.1. Host Overview Detection Across Three Months Trends</div>', unsafe_allow_html=True)
-    if 'overview_key_metrics' in host_data:
-        create_chart_with_pivot_logic(
-            host_data['overview_key_metrics'],
-            rows=['Month'],
-            columns=['KEY METRICS'],
-            values=['Count'],
-            chart_type='Bar Chart',
-            height=240,
-            analysis_key='overview_key_metrics',
-            use_monthly_colors=True,
-            sort_by='Month'
-        )
+        if not ticket_data:
+            st.caption("💡 Ticket Lifecycle Analysis is disabled (no ticket data available)")
 
-    # A.2 and A.3 side by side
-    col1, col2 = st.columns(2)
+    # ============================================
+    # DYNAMIC SECTION LETTERING
+    # ============================================
+    # Calculate section letters dynamically based on what's included
+    section_letters = {}
+    current_letter_index = 0
+    letters = ['A', 'B', 'C', 'D', 'E']
 
-    with col1:
-        st.markdown('<div class="chart-title">A.2. Top Hosts with Most Detections Across Three Months Trends - Top 5</div>', unsafe_allow_html=True)
-        if 'overview_top_hosts' in host_data:
+    if include_ticket_lifecycle and ticket_data:
+        section_letters['ticket'] = letters[current_letter_index]
+        current_letter_index += 1
+
+    if include_host_analysis:
+        section_letters['host'] = letters[current_letter_index]
+        current_letter_index += 1
+
+    if include_detection_analysis:
+        section_letters['detection'] = letters[current_letter_index]
+        current_letter_index += 1
+
+    if include_time_analysis:
+        section_letters['time'] = letters[current_letter_index]
+        current_letter_index += 1
+
+    # ============================================
+    # TICKET LIFECYCLE ANALYSIS SECTION (DYNAMIC)
+    # ============================================
+    if include_ticket_lifecycle and ticket_data:
+        section_letter = section_letters.get('ticket', 'A')
+        st.markdown(f'<div class="section-header">{section_letter}. Ticket Lifecycle Analysis</div>', unsafe_allow_html=True)
+        st.markdown('<div class="analysis-section">', unsafe_allow_html=True)
+
+        # Ticket Status Trend
+        st.markdown(f'<div class="chart-title">{section_letter}.1. Ticket Status Count Across {month_text} (Open, Pending, On-hold, Closed)</div>', unsafe_allow_html=True)
+        if 'ticket_status_trend' in ticket_data:
+            # Read user configuration from pivot_config session state
+            pivot_config = st.session_state.get('pivot_config', {})
+            user_use_ticket_status_colors = pivot_config.get('use_ticket_status_colors', True)  # Default to True for ticket data
+
             create_chart_with_pivot_logic(
-                host_data['overview_top_hosts'],
-                rows=['TOP HOSTS WITH MOST DETECTIONS'],
-                columns=['Month'],
+                ticket_data['ticket_status_trend'],
+                rows=['Month'],
+                columns=['Status'],
                 values=['Count'],
                 chart_type='Bar Chart',
-                height=220,
-                analysis_key='overview_top_hosts',
-                top_n={'enabled': True, 'field': 'TOP HOSTS WITH MOST DETECTIONS', 'n': 5, 'type': 'top', 'by_field': 'Count', 'per_month': False},
-                use_monthly_colors=True
+                height=240,
+                analysis_key='ticket_status_trend',
+                use_ticket_status_colors=user_use_ticket_status_colors
             )
 
-    with col2:
-        st.markdown('<div class="chart-title">A.3. Users with Most Detections Across Three Months Trends - Top 5</div>', unsafe_allow_html=True)
-        if 'user_analysis' in host_data:
+        st.markdown('</div>', unsafe_allow_html=True)  # Close Section A
+
+        # PAGE BREAK AFTER SECTION A IF INCLUDED
+        st.markdown('<div class="page-break-after"></div>', unsafe_allow_html=True)
+
+    # ============================================
+    # HOST SECURITY ANALYSIS SECTION (DYNAMIC)
+    # ============================================
+    if include_host_analysis:
+        section_letter = section_letters.get('host', 'A')
+        st.markdown(f'<div class="section-header">{section_letter}. Host Security Analysis</div>', unsafe_allow_html=True)
+        st.markdown('<div class="analysis-section">', unsafe_allow_html=True)
+
+        # Overview Detection (full width)
+        st.markdown(f'<div class="chart-title">{section_letter}.1. Host Overview Detection Across {month_text} Trends</div>', unsafe_allow_html=True)
+        if 'overview_key_metrics' in host_data:
             create_chart_with_pivot_logic(
-                host_data['user_analysis'],
-                rows=['Username'],
-                columns=['Month'],
-                values=['Count of Detection'],
+                host_data['overview_key_metrics'],
+                rows=['Month'],
+                columns=['KEY METRICS'],
+                values=['Count'],
                 chart_type='Bar Chart',
-                height=220,
-                analysis_key='user_analysis',
-                top_n={'enabled': True, 'field': 'Username', 'n': 5, 'type': 'top', 'by_field': 'Count of Detection', 'per_month': False},
-                use_monthly_colors=True
+                height=240,
+                analysis_key='overview_key_metrics',
+                use_monthly_colors=True,
+                sort_by='Month'
             )
 
-    # A.4 Sensor Versions (full width)
-    st.markdown('<div class="chart-title">A.4. Detections Hosts with Sensor Versions Status Across Three Months</div>', unsafe_allow_html=True)
-    if 'sensor_analysis' in host_data:
-        create_chart_with_pivot_logic(
-            host_data['sensor_analysis'],
-            rows=['Sensor Version', 'Month', 'Status'],
-            columns=[],
-            values=['Host Count'],
-            chart_type='Bar Chart',
-            height=240,
-            analysis_key='sensor_analysis',
-            use_monthly_colors=True
-        )
+        # Subsection 2 and 3 side by side
+        col1, col2 = st.columns(2)
 
-    st.markdown('</div>', unsafe_allow_html=True)  # Close Section A
-
-    # PAGE BREAK AFTER SECTION A (End of Page 1)
-    st.markdown('<div class="page-break-after"></div>', unsafe_allow_html=True)
-
-    # ============================================
-    # SECTION B: DETECTION AND SEVERITY ANALYSIS
-    # ============================================
-
-    st.markdown('<div class="section-header">B. Detection and Severity Analysis</div>', unsafe_allow_html=True)
-    st.markdown('<div class="analysis-section">', unsafe_allow_html=True)
-
-    # B.1 Critical and High Detection Overview - Side by Side Layout
-    st.markdown('<div class="chart-title">B.1. Detection Count by Severity Across Three Months Trends</div>', unsafe_allow_html=True)
-
-    if 'critical_high_overview' in detection_data:
-        # Get unique months sorted chronologically
-        month_order = {
-            'January': 1, 'February': 2, 'March': 3, 'April': 4,
-            'May': 5, 'June': 6, 'July': 7, 'August': 8,
-            'September': 9, 'October': 10, 'November': 11, 'December': 12,
-            'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-            'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
-        }
-
-        def get_month_sort_key(month_str):
-            if pd.isna(month_str):
-                return 999
-            for month_name, order in month_order.items():
-                if month_name in str(month_str):
-                    return order
-            return 0
-
-        # Get sorted months
-        if 'Month' in detection_data['critical_high_overview'].columns:
-            months_list = detection_data['critical_high_overview']['Month'].unique()
-            months = sorted([m for m in months_list if pd.notna(m)], key=get_month_sort_key)
-        else:
-            months = ['Single Month']
-
-        # Create two columns: Critical | High
-        col_critical, col_high = st.columns(2)
-
-        # LEFT COLUMN: Critical Detections (3 boxes side-by-side horizontally)
-        with col_critical:
-            st.markdown('<div style="font-size: 10px; font-weight: bold; margin-bottom: 5px; color: #333; text-align: center;">Critical Detections</div>', unsafe_allow_html=True)
-
-            # Monthly color mapping (consistent with chart colors from pivot_table_builder)
-            monthly_colors = {
-                'July 2025': '#70AD47',      # Green (month_1)
-                'August 2025': '#5B9BD5',    # Blue (month_2)
-                'September 2025': '#FFC000', # Gold (month_3)
-                'Jul 2025': '#70AD47',
-                'Aug 2025': '#5B9BD5',
-                'Sep 2025': '#FFC000'
-            }
-
-            # Build list of box data
-            box_data = []
-            for month in months:
-                # Filter data for Critical Detections in this month
-                critical_data = detection_data['critical_high_overview'][
-                    (detection_data['critical_high_overview']['KEY METRICS'] == 'Critical Detections') &
-                    (detection_data['critical_high_overview']['Month'] == month)
-                ]
-
-                # Get count value
-                if not critical_data.empty and 'Count' in critical_data.columns:
-                    count_value = int(critical_data['Count'].iloc[0])
-                else:
-                    count_value = 0
-
-                # Get month color
-                month_color = monthly_colors.get(str(month), '#7cb342')  # Default to green
-                box_data.append((month, count_value, month_color))
-
-            # Create horizontal container for 3 boxes - compact fonts with monthly colors and black text
-            boxes_html = '<div style="display: flex; gap: 5px; justify-content: center;">'
-            for month, count_value, month_color in box_data:
-                boxes_html += f'<div style="background-color: {month_color}; border-radius: 5px; padding: 8px; text-align: center; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); border: 1px solid #d0d0d0; flex: 1; min-width: 60px; display: flex; flex-direction: column; justify-content: center;"><div style="font-size: 8px; color: #000000; font-weight: 600; margin-bottom: 3px;">{month}</div><div style="font-size: 24px; color: #000000; font-weight: bold; margin: 3px 0;">{count_value}</div><div style="font-size: 7px; color: #000000;">Critical</div></div>'
-            boxes_html += '</div>'
-            st.markdown(boxes_html, unsafe_allow_html=True)
-
-        # RIGHT COLUMN: High Detections (independent bar chart)
-        with col_high:
-            st.markdown('<div style="font-size: 10px; font-weight: bold; margin-bottom: 5px; color: #333; text-align: center;">High Detections</div>', unsafe_allow_html=True)
-
-            # Filter for High Detections only
-            high_only = detection_data['critical_high_overview'][
-                detection_data['critical_high_overview']['KEY METRICS'] == 'High Detections'
-            ].copy()
-
-            if not high_only.empty:
+        with col1:
+            st.markdown(f'<div class="chart-title">{section_letter}.2. Top Hosts with Most Detections Across {month_text} Trends - Top 5</div>', unsafe_allow_html=True)
+            if 'overview_top_hosts' in host_data:
                 create_chart_with_pivot_logic(
-                    high_only,
-                    rows=['Month'],
-                    columns=[],
+                    host_data['overview_top_hosts'],
+                    rows=['TOP HOSTS WITH MOST DETECTIONS'],
+                    columns=['Month'],
                     values=['Count'],
                     chart_type='Bar Chart',
-                    height=180,
-                    analysis_key='critical_high_overview',
+                    height=220,
+                    analysis_key='overview_top_hosts',
+                    top_n={'enabled': True, 'field': 'TOP HOSTS WITH MOST DETECTIONS', 'n': 5, 'type': 'top', 'by_field': 'Count', 'per_month': False},
                     use_monthly_colors=True
                 )
 
-    # B.2 and B.3 side by side
-    col1, col2 = st.columns(2)
+        with col2:
+            st.markdown(f'<div class="chart-title">{section_letter}.3. Users with Most Detections Across {month_text} Trends - Top 5</div>', unsafe_allow_html=True)
+            if 'user_analysis' in host_data:
+                create_chart_with_pivot_logic(
+                    host_data['user_analysis'],
+                    rows=['Username'],
+                    columns=['Month'],
+                    values=['Count of Detection'],
+                    chart_type='Bar Chart',
+                    height=220,
+                    analysis_key='user_analysis',
+                    top_n={'enabled': True, 'field': 'Username', 'n': 5, 'type': 'top', 'by_field': 'Count of Detection', 'per_month': False},
+                    use_monthly_colors=True
+                )
 
-    with col1:
-        st.markdown('<div class="chart-title">B.2. Detection Count by Severity Across Three Months Trends</div>', unsafe_allow_html=True)
-        if 'severity_trend' in detection_data:
+        # Sensor Versions (full width)
+        st.markdown(f'<div class="chart-title">{section_letter}.4. Detections Hosts with Sensor Versions Status Across {month_text}</div>', unsafe_allow_html=True)
+        if 'sensor_analysis' in host_data:
             create_chart_with_pivot_logic(
-                detection_data['severity_trend'],
-                rows=['Month'],
-                columns=['SeverityName'],
-                values=['Count'],
+                host_data['sensor_analysis'],
+                rows=['Sensor Version', 'Month', 'Status'],
+                columns=[],
+                values=['Host Count'],
                 chart_type='Bar Chart',
-                height=220,
-                analysis_key='severity_trend',
-                use_severity_colors=True
+                height=240,
+                analysis_key='sensor_analysis',
+                use_monthly_colors=True
             )
 
-    with col2:
-        st.markdown('<div class="chart-title">B.3. Detection Count by Country Across Three Months Trends</div>', unsafe_allow_html=True)
-        if 'country_analysis' in detection_data:
+        st.markdown('</div>', unsafe_allow_html=True)  # Close Section B
+
+        # PAGE BREAK AFTER SECTION B (Only if ticket lifecycle was not included)
+        if not include_ticket_lifecycle:
+            st.markdown('<div class="page-break-after"></div>', unsafe_allow_html=True)
+
+    # ============================================
+    # DETECTION AND SEVERITY ANALYSIS SECTION (DYNAMIC)
+    # ============================================
+    if include_detection_analysis:
+        section_letter = section_letters.get('detection', 'B')
+        st.markdown(f'<div class="section-header">{section_letter}. Detection and Severity Analysis</div>', unsafe_allow_html=True)
+        st.markdown('<div class="analysis-section">', unsafe_allow_html=True)
+
+        # Critical and High Detection Overview - Side by Side Layout
+        st.markdown(f'<div class="chart-title">{section_letter}.1. Detection Count by Severity Across {month_text} Trends</div>', unsafe_allow_html=True)
+
+        if 'critical_high_overview' in detection_data:
+            # Get unique months sorted chronologically
+            month_order = {
+                'January': 1, 'February': 2, 'March': 3, 'April': 4,
+                'May': 5, 'June': 6, 'July': 7, 'August': 8,
+                'September': 9, 'October': 10, 'November': 11, 'December': 12,
+                'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+            }
+
+            def get_month_sort_key(month_str):
+                if pd.isna(month_str):
+                    return 999
+                for month_name, order in month_order.items():
+                    if month_name in str(month_str):
+                        return order
+                return 0
+
+            # Get sorted months
+            if 'Month' in detection_data['critical_high_overview'].columns:
+                months_list = detection_data['critical_high_overview']['Month'].unique()
+                months = sorted([m for m in months_list if pd.notna(m)], key=get_month_sort_key)
+            else:
+                months = ['Single Month']
+
+            # Create two columns: Critical | High
+            col_critical, col_high = st.columns(2)
+
+            # LEFT COLUMN: Critical Detections (3 boxes side-by-side horizontally)
+            with col_critical:
+                st.markdown('<div style="font-size: 10px; font-weight: bold; margin-bottom: 5px; color: #333; text-align: center;">Critical Detections</div>', unsafe_allow_html=True)
+
+                # Monthly color mapping (consistent with chart colors from pivot_table_builder)
+                monthly_colors = {
+                    'July 2025': '#70AD47',      # Green (month_1)
+                    'August 2025': '#5B9BD5',    # Blue (month_2)
+                    'September 2025': '#FFC000', # Gold (month_3)
+                    'Jul 2025': '#70AD47',
+                    'Aug 2025': '#5B9BD5',
+                    'Sep 2025': '#FFC000'
+                }
+
+                # Build list of box data
+                box_data = []
+                for month in months:
+                    # Filter data for Critical Detections in this month
+                    critical_data = detection_data['critical_high_overview'][
+                        (detection_data['critical_high_overview']['KEY METRICS'] == 'Critical Detections') &
+                        (detection_data['critical_high_overview']['Month'] == month)
+                    ]
+
+                    # Get count value
+                    if not critical_data.empty and 'Count' in critical_data.columns:
+                        count_value = int(critical_data['Count'].iloc[0])
+                    else:
+                        count_value = 0
+
+                    # Get month color
+                    month_color = monthly_colors.get(str(month), '#7cb342')  # Default to green
+                    box_data.append((month, count_value, month_color))
+
+                # Create horizontal container for 3 boxes - compact fonts with monthly colors and black text
+                boxes_html = '<div style="display: flex; gap: 5px; justify-content: center;">'
+                for month, count_value, month_color in box_data:
+                    boxes_html += f'<div style="background-color: {month_color}; border-radius: 5px; padding: 8px; text-align: center; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); border: 1px solid #d0d0d0; flex: 1; min-width: 60px; display: flex; flex-direction: column; justify-content: center;"><div style="font-size: 8px; color: #000000; font-weight: 600; margin-bottom: 3px;">{month}</div><div style="font-size: 24px; color: #000000; font-weight: bold; margin: 3px 0;">{count_value}</div><div style="font-size: 7px; color: #000000;">Critical</div></div>'
+                boxes_html += '</div>'
+                st.markdown(boxes_html, unsafe_allow_html=True)
+
+            # RIGHT COLUMN: High Detections (independent bar chart)
+            with col_high:
+                st.markdown('<div style="font-size: 10px; font-weight: bold; margin-bottom: 5px; color: #333; text-align: center;">High Detections</div>', unsafe_allow_html=True)
+
+                # Filter for High Detections only
+                high_only = detection_data['critical_high_overview'][
+                    detection_data['critical_high_overview']['KEY METRICS'] == 'High Detections'
+                ].copy()
+
+                if not high_only.empty:
+                    create_chart_with_pivot_logic(
+                        high_only,
+                        rows=['Month'],
+                        columns=[],
+                        values=['Count'],
+                        chart_type='Bar Chart',
+                        height=180,
+                        analysis_key='critical_high_overview',
+                        use_monthly_colors=True
+                    )
+
+        # C.2 and C.3 side by side
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown(f'<div class="chart-title">{section_letter}.2. Detection Count by Severity Across {month_text} Trends</div>', unsafe_allow_html=True)
+            if 'severity_trend' in detection_data:
+                create_chart_with_pivot_logic(
+                    detection_data['severity_trend'],
+                    rows=['Month'],
+                    columns=['SeverityName'],
+                    values=['Count'],
+                    chart_type='Bar Chart',
+                    height=220,
+                    analysis_key='severity_trend',
+                    use_severity_colors=True
+                )
+
+        with col2:
+            st.markdown(f'<div class="chart-title">{section_letter}.3. Detection Count by Country Across {month_text} Trends</div>', unsafe_allow_html=True)
+            if 'country_analysis' in detection_data:
+                create_chart_with_pivot_logic(
+                    detection_data['country_analysis'],
+                    rows=['Country'],
+                    columns=['Month'],
+                    values=['Detection Count'],
+                    chart_type='Bar Chart',
+                    height=220,
+                    analysis_key='country_analysis',
+                    use_monthly_colors=True
+                )
+
+        # Files (bar chart with filename on x-axis)
+        st.markdown(f'<div class="chart-title">{section_letter}.4. File Name with Most Detections Across {month_text} Trends - Top 5</div>', unsafe_allow_html=True)
+        if 'file_analysis' in detection_data:
             create_chart_with_pivot_logic(
-                detection_data['country_analysis'],
-                rows=['Country'],
+                detection_data['file_analysis'],
+                rows=['File Name'],
                 columns=['Month'],
                 values=['Detection Count'],
                 chart_type='Bar Chart',
-                height=220,
-                analysis_key='country_analysis',
+                height=260,
+                analysis_key='file_analysis',
+                top_n={'enabled': True, 'field': 'File Name', 'n': 5, 'type': 'top', 'by_field': 'Detection Count', 'per_month': False},
                 use_monthly_colors=True
             )
 
-    # B.4 Files (bar chart with filename on x-axis)
-    st.markdown('<div class="chart-title">B.4. File Name with Most Detections Across Three Months Trends - Top 5</div>', unsafe_allow_html=True)
-    if 'file_analysis' in detection_data:
-        create_chart_with_pivot_logic(
-            detection_data['file_analysis'],
-            rows=['File Name'],
-            columns=['Month'],
-            values=['Detection Count'],
-            chart_type='Bar Chart',
-            height=260,
-            analysis_key='file_analysis',
-            top_n={'enabled': True, 'field': 'File Name', 'n': 5, 'type': 'top', 'by_field': 'Detection Count', 'per_month': False},
-            use_monthly_colors=True
-        )
+        # C.5 and C.6 side by side
+        col1, col2 = st.columns(2)
 
-    # B.5 and B.6 side by side
-    col1, col2 = st.columns(2)
+        with col1:
+            # Tactics (area chart)
+            st.markdown(f'<div class="chart-title">{section_letter}.5. Tactics by Severity Across {month_text} Trends</div>', unsafe_allow_html=True)
+            if 'tactics_by_severity' in detection_data:
+                create_chart_with_pivot_logic(
+                    detection_data['tactics_by_severity'],
+                    rows=['Month', 'SeverityName'],
+                    columns=['Tactic'],
+                    values=['Count'],
+                    chart_type='Area Chart',
+                    height=300,
+                    analysis_key='tactics_by_severity',
+                    use_severity_colors=True,
+                    use_monthly_colors=True
+                )
 
-    with col1:
-        # B.5 Tactics (area chart)
-        st.markdown('<div class="chart-title">B.5. Tactics by Severity Across Three Months Trends</div>', unsafe_allow_html=True)
-        if 'tactics_by_severity' in detection_data:
-            create_chart_with_pivot_logic(
-                detection_data['tactics_by_severity'],
-                rows=['Month', 'SeverityName'],
-                columns=['Tactic'],
-                values=['Count'],
-                chart_type='Area Chart',
-                height=300,
-                analysis_key='tactics_by_severity',
-                use_severity_colors=True,
-                use_monthly_colors=True
-            )
+        with col2:
+            # Technique (area chart)
+            st.markdown(f'<div class="chart-title">{section_letter}.6. Technique by Severity Across {month_text} Trends</div>', unsafe_allow_html=True)
+            if 'technique_by_severity' in detection_data:
+                # Pre-sort data to put Adware/PUP first
+                technique_df = detection_data['technique_by_severity'].copy()
+                if 'Technique' in technique_df.columns:
+                    # Create sort key: Adware/PUP first, then by total count descending
+                    def sort_key(tech):
+                        if pd.notna(tech) and 'Adware' in str(tech).upper() or 'PUP' in str(tech).upper():
+                            return (0, str(tech))  # Priority 0 for Adware/PUP
+                        return (1, str(tech))  # Priority 1 for others
 
-    with col2:
-        # B.6 Technique (area chart)
-        st.markdown('<div class="chart-title">B.6. Technique by Severity Across Three Months Trends</div>', unsafe_allow_html=True)
-        if 'technique_by_severity' in detection_data:
-            # Pre-sort data to put Adware/PUP first
-            technique_df = detection_data['technique_by_severity'].copy()
-            if 'Technique' in technique_df.columns:
-                # Create sort key: Adware/PUP first, then by total count descending
-                def sort_key(tech):
-                    if pd.notna(tech) and 'Adware' in str(tech).upper() or 'PUP' in str(tech).upper():
-                        return (0, str(tech))  # Priority 0 for Adware/PUP
-                    return (1, str(tech))  # Priority 1 for others
+                    # Calculate totals and sort
+                    tech_totals = technique_df.groupby('Technique')['Count'].sum().reset_index()
+                    tech_totals['sort_key'] = tech_totals['Technique'].apply(lambda x: (0 if (pd.notna(x) and ('Adware' in str(x) or 'PUP' in str(x))) else 1, -tech_totals[tech_totals['Technique']==x]['Count'].iloc[0] if len(tech_totals[tech_totals['Technique']==x]) > 0 else 0))
 
-                # Calculate totals and sort
-                tech_totals = technique_df.groupby('Technique')['Count'].sum().reset_index()
-                tech_totals['sort_key'] = tech_totals['Technique'].apply(lambda x: (0 if (pd.notna(x) and ('Adware' in str(x) or 'PUP' in str(x))) else 1, -tech_totals[tech_totals['Technique']==x]['Count'].iloc[0] if len(tech_totals[tech_totals['Technique']==x]) > 0 else 0))
+                create_chart_with_pivot_logic(
+                    technique_df,
+                    rows=['Month', 'SeverityName'],
+                    columns=['Technique'],
+                    values=['Count'],
+                    chart_type='Area Chart',
+                    height=300,
+                    analysis_key='technique_by_severity_c6',  # Unique key for C.6
+                    top_n={'enabled': True, 'field': 'Technique', 'n': 10, 'type': 'top', 'by_field': 'Count', 'per_month': False},
+                    use_severity_colors=True,
+                    use_monthly_colors=True
+                )
 
-            create_chart_with_pivot_logic(
-                technique_df,
-                rows=['Month', 'SeverityName'],
-                columns=['Technique'],
-                values=['Count'],
-                chart_type='Area Chart',
-                height=300,
-                analysis_key='technique_by_severity_b6',  # Unique key for B.6
-                top_n={'enabled': True, 'field': 'Technique', 'n': 10, 'type': 'top', 'by_field': 'Count', 'per_month': False},
-                use_severity_colors=True,
-                use_monthly_colors=True
-            )
-
-    st.markdown('</div>', unsafe_allow_html=True)  # Close Section B
+        st.markdown('</div>', unsafe_allow_html=True)  # Close Section C
 
     # ============================================
-    # SECTION C: TIME-BASED ANALYSIS
+    # TIME-BASED ANALYSIS SECTION (DYNAMIC)
     # ============================================
+    if include_time_analysis:
+        section_letter = section_letters.get('time', 'C')
+        st.markdown(f'<div class="section-header">{section_letter}. Time-Based Analysis</div>', unsafe_allow_html=True)
+        st.markdown('<div class="analysis-section">', unsafe_allow_html=True)
 
-    st.markdown('<div class="section-header">C. Time-Based Analysis</div>', unsafe_allow_html=True)
-    st.markdown('<div class="analysis-section">', unsafe_allow_html=True)
+        # Daily Trend (full width) - Use exact same logic as pivot table builder
+        st.markdown(f'<div class="chart-title">{section_letter}.1. Detection Over Multiple Days Across {month_text} Trends - Top 3</div>', unsafe_allow_html=True)
+        if 'daily_trends' in time_data:
+            # Pre-process to remove month prefix from Date labels
+            daily_df = time_data['daily_trends'].copy()
+            if 'Date' in daily_df.columns:
+                # Extract just the date part after the month name (e.g., "June Wed Jun 04 2025" -> "Wed Jun 04 2025")
+                daily_df['Date'] = daily_df['Date'].apply(lambda x: ' '.join(str(x).split()[1:]) if pd.notna(x) and len(str(x).split()) > 1 else str(x))
 
-    # C.1 Daily Trend (full width) - Use exact same logic as pivot table builder
-    st.markdown('<div class="chart-title">C.1. Detection Over Multiple Days Across Three Months Trends - Top 3</div>', unsafe_allow_html=True)
-    if 'daily_trends' in time_data:
-        # Pre-process to remove month prefix from Date labels
-        daily_df = time_data['daily_trends'].copy()
-        if 'Date' in daily_df.columns:
-            # Extract just the date part after the month name (e.g., "June Wed Jun 04 2025" -> "Wed Jun 04 2025")
-            daily_df['Date'] = daily_df['Date'].apply(lambda x: ' '.join(str(x).split()[1:]) if pd.notna(x) and len(str(x).split()) > 1 else str(x))
-
-        create_chart_with_pivot_logic(
-            daily_df,
-            rows=['Date', 'Month'],
-            columns=[],
-            values=['Detection Count'],
-            chart_type='Bar Chart',
-            height=240,
-            analysis_key='daily_trends',
-            top_n={'enabled': True, 'field': 'Date', 'n': 3, 'type': 'top', 'by_field': 'Detection Count', 'per_month': True},
-            use_monthly_colors=True
-        )
-
-    # C.2 and C.3 side by side - EXACT SAME STYLING as pivot table builder
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown('<div class="chart-title">C.2. Hourly Distribution of Detections Across Three Months Trends</div>', unsafe_allow_html=True)
-        if 'hourly_analysis' in time_data:
             create_chart_with_pivot_logic(
-                time_data['hourly_analysis'],
-                rows=['Hour'],
-                columns=[],
-                values=['Detection Count'],
-                chart_type='Line Chart',
-                height=220,
-                analysis_key='hourly_analysis',
-                use_monthly_colors=False,
-                sort_by='Hour',
-                sort_direction='descending'
-            )
-
-    with col2:
-        st.markdown('<div class="chart-title">C.3. Detection Frequency by Day of Week Across Three Months Trends</div>', unsafe_allow_html=True)
-        if 'day_of_week' in time_data:
-            create_chart_with_pivot_logic(
-                time_data['day_of_week'],
-                rows=['Day', 'Type'],
+                daily_df,
+                rows=['Date', 'Month'],
                 columns=[],
                 values=['Detection Count'],
                 chart_type='Bar Chart',
-                height=220,
-                analysis_key='day_of_week',
-                use_monthly_colors=False,
-                sort_by='Day',
-                sort_direction='descending'  # Descending gives Monday→Sunday due to (not sort_ascending) logic
+                height=240,
+                analysis_key='daily_trends',
+                top_n={'enabled': True, 'field': 'Date', 'n': 3, 'type': 'top', 'by_field': 'Detection Count', 'per_month': True},
+                use_monthly_colors=True
             )
 
-    st.markdown('</div>', unsafe_allow_html=True)  # Close Section C
+        # D.2 and D.3 side by side - EXACT SAME STYLING as pivot table builder
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown(f'<div class="chart-title">{section_letter}.2. Hourly Distribution of Detections Across {month_text} Trends</div>', unsafe_allow_html=True)
+            if 'hourly_analysis' in time_data:
+                create_chart_with_pivot_logic(
+                    time_data['hourly_analysis'],
+                    rows=['Hour'],
+                    columns=[],
+                    values=['Detection Count'],
+                    chart_type='Line Chart',
+                    height=220,
+                    analysis_key='hourly_analysis',
+                    use_monthly_colors=False,
+                    sort_by='Hour',
+                    sort_direction='descending'
+                )
+
+        with col2:
+            st.markdown(f'<div class="chart-title">{section_letter}.3. Detection Frequency by Day of Week Across {month_text} Trends</div>', unsafe_allow_html=True)
+            if 'day_of_week' in time_data:
+                create_chart_with_pivot_logic(
+                    time_data['day_of_week'],
+                    rows=['Day', 'Type'],
+                    columns=[],
+                    values=['Detection Count'],
+                    chart_type='Bar Chart',
+                    height=220,
+                    analysis_key='day_of_week',
+                    use_monthly_colors=False,
+                    sort_by='Day',
+                    sort_direction='descending'  # Descending gives Monday→Sunday due to (not sort_ascending) logic
+                )
+
+        st.markdown('</div>', unsafe_allow_html=True)  # Close Section D
 
 
-def create_chart_with_pivot_logic(df, rows, columns, values, chart_type, height, analysis_key, top_n=None, use_severity_colors=False, use_monthly_colors=False, sort_by=None, sort_direction='descending'):
+def create_chart_with_pivot_logic(df, rows, columns, values, chart_type, height, analysis_key, top_n=None, use_severity_colors=False, use_ticket_status_colors=False, use_monthly_colors=False, sort_by=None, sort_direction='descending'):
     """
     Create chart using the EXACT same logic as pivot_table_builder.py
     This ensures consistency across all dashboards
@@ -583,6 +668,7 @@ def create_chart_with_pivot_logic(df, rows, columns, values, chart_type, height,
         'filters': {},
         'top_n': top_n,
         'use_severity_colors': use_severity_colors,
+        'use_ticket_status_colors': use_ticket_status_colors,
         'use_monthly_colors': use_monthly_colors
     }
     
@@ -766,7 +852,8 @@ def check_data_availability() -> bool:
     return (
         'host_analysis_results' in st.session_state or
         'detection_analysis_results' in st.session_state or
-        'time_analysis_results' in st.session_state
+        'time_analysis_results' in st.session_state or
+        'ticket_lifecycle_results' in st.session_state
     )
 
 
