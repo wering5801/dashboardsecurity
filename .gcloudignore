@@ -1,0 +1,27 @@
+# Google Cloud Build Ignore File
+.gcloudignore
+.git
+.gitignore
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.md
+!README.md
+.claude/
+gacha 3070/
+*.log
+.env
+.env.local
+test/
+tests/
