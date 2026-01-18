@@ -889,10 +889,13 @@ def host_analysis_dashboard():
                 summary_text = "Insufficient data to generate a comprehensive executive summary."
             
             # Display the summary in the blue container only
+            # Process the summary text outside the f-string to avoid backslash issues
+            formatted_summary = summary_text.replace('• ', '<li>').replace('\n• ', '</li><li>').replace('\n', '<br>')
+
             st.markdown(f"""
             <div class="executive-summary-blue">
                 <ul class="summary-bullet">
-                    {summary_text.replace('• ', '<li>').replace('\n• ', '</li><li>').replace('\n', '<br>')}
+                    {formatted_summary}
                 </li></ul>
             </div>
             """, unsafe_allow_html=True)
