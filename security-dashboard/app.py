@@ -77,6 +77,7 @@ from drag_drop_dashboard_builder import drag_drop_dashboard_function
 from pivot_table_builder import pivot_table_builder_dashboard
 from main_dashboard_report import main_dashboard_report
 from dashboard_pdf_export import falcon_dashboard_pdf_layout
+from detection_status_dashboard import detection_status_dashboard
 
 # Configure sidebar
 st.sidebar.title("Security Dashboard")
@@ -89,6 +90,7 @@ dashboard = st.sidebar.selectbox(
         "📄 PDF Export Dashboard (Single-Page)",
         "Falcon Data Generator",
         "Pivot Table Builder (Excel-Style)",
+        "📊 Detection Status Analysis",
         # Hidden for now - not in use at this moment
         # "Host Analysis",
         # "Detection and Severity Analysis Analysis",
@@ -123,5 +125,7 @@ elif dashboard == "Falcon Data Generator":
     falcon_generator_dashboard()
 elif dashboard == "Pivot Table Builder (Excel-Style)":
     pivot_table_builder_dashboard()
+elif dashboard == "📊 Detection Status Analysis":
+    detection_status_dashboard()
 elif dashboard == "Custom Drag & Drop Dashboard Builder":
     drag_drop_dashboard_function()

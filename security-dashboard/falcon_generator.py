@@ -9,6 +9,7 @@ from host_analysis_generator import generate_host_analysis
 from detection_severity_generator import generate_detection_severity_analysis
 from time_analysis_generator import generate_time_analysis
 from ticket_lifecycle_generator import generate_ticket_lifecycle_analysis, create_placeholder_ticket_data
+from detection_status_generator import generate_detection_status_analysis
 
 # Dummy data generation function removed - no longer needed
 
@@ -328,6 +329,81 @@ def falcon_generator_dashboard():
             # Store in session state for processing
             st.session_state['ticket_config_per_month'] = ticket_config_per_month
 
+    # ============================================
+    # DETECTION STATUS DATA (STATUS + SEVERITY)
+    # ============================================
+    st.markdown("---")
+    st.header("📊 Detection Status by Severity (Optional)")
+    st.markdown("""
+    **Optional Section:** Upload detection data showing **Status + Severity** for comprehensive analysis.
+
+    This creates a **pivot table** showing detections by both **Status** (closed, in_progress, open)
+    and **Severity** (Critical, High, Medium, Low).
+
+    **Required columns:**
+    - `Status` - Detection status (closed, in_progress, open, pending, on-hold)
+    - `SeverityName` - Detection severity (Critical, High, Medium, Low)
+    - `Request ID` - Detection identifier (optional but recommended)
+
+    📄 **Sample File:** See `sample_detection_status_november.csv` for format example
+    """)
+
+    use_detection_status = st.checkbox("Include Detection Status Analysis", value=False)
+    detection_status_files = []
+
+    if use_detection_status:
+        with st.expander("📖 View CSV Format Requirements", expanded=False):
+            st.markdown("""
+            **Required Columns:**
+            - `Status`: Detection status (closed, in_progress, open, pending, on-hold)
+            - `SeverityName`: Severity level (Critical, High, Medium, Low)
+            - `Request ID`: Detection identifier
+
+            **Sample Format:**
+            ```
+            Status,SeverityName,Request ID
+            closed,Critical,503528
+            closed,High,503457
+            closed,High,503479
+            in_progress,Medium,513757
+            open,High,503900
+            ```
+
+            **Output:** Creates a pivot table like:
+            ```
+            Status       | Critical | High | Medium | Low | Grand Total
+            -------------|----------|------|--------|-----|------------
+            closed       |    1     |  10  |   3    |  2  |     16
+            in_progress  |    0     |   0  |   1    |  0  |      1
+            ```
+
+            📥 **Sample file:** `sample_detection_status_november.csv`
+            """)
+
+        st.markdown("#### 📤 Upload Detection Status Files")
+        st.info("💡 Upload one CSV file per month. Each file should contain Status and SeverityName columns.")
+
+        for i in range(num_months):
+            with st.expander(f"📅 {month_data[i]['period']} - Upload Detection Status", expanded=(i == 0)):
+                detection_file = st.file_uploader(
+                    f"Upload Detection Status CSV for {month_data[i]['period']}",
+                    type=['csv'],
+                    key=f"detection_status_{i}",
+                    help="CSV with Status, SeverityName, and Request ID columns"
+                )
+
+                if detection_file:
+                    st.success(f"✅ Detection status file uploaded for {month_data[i]['period']}")
+                    detection_status_files.append({
+                        'file': detection_file,
+                        'period': month_data[i]['period']
+                    })
+                else:
+                    detection_status_files.append(None)
+
+        # Store in session state
+        st.session_state['detection_status_files'] = detection_status_files
+
     if st.button("🚀 Process All Months and Generate Templates"):
         # Create status container at the top for all notifications
         status_container = st.container()
@@ -440,6 +516,43 @@ def falcon_generator_dashboard():
                         with status_container:
                             st.error(f"❌ Error generating ticket lifecycle analysis: {str(e)}")
                             st.warning("Ticket analysis failed, but other templates are still available.")
+
+                # ============================================
+                # Generate Detection Status Analysis (if enabled)
+                # ============================================
+                if use_detection_status:
+                    try:
+                        detection_status_files = st.session_state.get('detection_status_files', [])
+
+                        # Read all uploaded detection status files
+                        detection_status_dfs = []
+                        detection_months = []
+
+                        for file_data in detection_status_files:
+                            if file_data and 'file' in file_data:
+                                df = pd.read_csv(file_data['file'])
+                                detection_status_dfs.append(df)
+                                detection_months.append(file_data['period'])
+                                with status_container:
+                                    st.info(f"📊 Processing detection status for {file_data['period']}: {len(df)} detections")
+
+                        if detection_status_dfs:
+                            # Generate detection status analysis
+                            detection_status_results = generate_detection_status_analysis(
+                                detection_status_dfs,
+                                detection_months
+                            )
+                            st.session_state['detection_status_results'] = detection_status_results
+                            with status_container:
+                                st.success(f"✅ Detection Status Analysis: {len(detection_status_results)} month(s) analyzed")
+                        else:
+                            with status_container:
+                                st.warning("⚠️ Detection Status enabled but no files uploaded")
+
+                    except Exception as e:
+                        with status_container:
+                            st.error(f"❌ Error generating detection status analysis: {str(e)}")
+                            st.warning("Detection status analysis failed, but other templates are still available.")
 
                 with status_container:
                     st.success(f"🎉 All analysis results generated successfully for {actual_num_months} month(s)! Ready for Pivot Table Builder.")
