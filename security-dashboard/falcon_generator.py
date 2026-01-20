@@ -295,7 +295,39 @@ def falcon_generator_dashboard():
             )
 
             if ticket_upload_file:
-                st.success("✅ Ticket data file uploaded successfully!")
+                # Validate CSV format before accepting
+                try:
+                    # Read CSV with proper encoding
+                    temp_df = pd.read_csv(ticket_upload_file, encoding='utf-8-sig')
+                    ticket_upload_file.seek(0)  # Reset file pointer
+
+                    # Check required columns
+                    required_columns = ['Period', 'Status', 'SeverityName', 'Request ID']
+                    missing_columns = [col for col in required_columns if col not in temp_df.columns]
+
+                    if missing_columns:
+                        st.error(f"❌ Missing required columns: {', '.join(missing_columns)}")
+                        st.info("""
+                        **Required CSV format:**
+                        - `Period` - Month name (e.g., "November 2025")
+                        - `Status` - closed, in_progress, open, pending, on-hold
+                        - `SeverityName` - Critical, High, Medium, Low
+                        - `Request ID` - Detection identifier
+                        - `Count of SeverityName` - (Optional) Count value
+
+                        📥 Download the sample template above to see the correct format.
+                        """)
+                        ticket_upload_file = None  # Clear invalid file
+                    else:
+                        st.success(f"✅ Ticket data file uploaded successfully! ({len(temp_df)} rows)")
+
+                        # Show preview
+                        with st.expander("👀 Preview uploaded data (first 5 rows)"):
+                            st.dataframe(temp_df.head(), use_container_width=True)
+                except Exception as e:
+                    st.error(f"❌ Error reading CSV file: {str(e)}")
+                    st.info("Make sure your CSV file is properly formatted and encoded in UTF-8")
+                    ticket_upload_file = None
         else:
             st.info("📝 Customize your placeholder ticket data below:")
 
@@ -445,13 +477,19 @@ def falcon_generator_dashboard():
                     templates, data_notes = process_with_compositeid_case_detection(
                         m['host_export_file'], m['file1'], m['file2'], m['file3'], m['file4']
                     )
-                    # Tag each DataFrame with the period
-                    for k in templates:
-                        if not templates[k].empty:
-                            templates[k]['Period'] = m['period']
-                    all_templates.append(templates)
-                    all_notes.append(data_notes)
-                    processed_months.append(m['period'])  # Track this month
+
+                    # Check if templates is valid before processing
+                    if templates is not None and isinstance(templates, dict):
+                        # Tag each DataFrame with the period
+                        for k in templates:
+                            if not templates[k].empty:
+                                templates[k]['Period'] = m['period']
+                        all_templates.append(templates)
+                        all_notes.append(data_notes)
+                        processed_months.append(m['period'])  # Track this month
+                    else:
+                        with status_container:
+                            st.error(f"❌ Error processing Month {i+1} ({m['period']}). Check your CSV file encoding and format.")
             else:
                 with status_container:
                     st.error(f"❌ Month {i+1} is missing required files. Skipping.")
@@ -523,7 +561,7 @@ def falcon_generator_dashboard():
                     try:
                         if ticket_data_option == "Upload CSV file" and ticket_upload_file:
                             # Read uploaded ticket data with UTF-8 encoding
-                            ticket_df = pd.read_csv(ticket_upload_file, encoding='utf-8-sig', errors='replace')
+                            ticket_df = pd.read_csv(ticket_upload_file, encoding='utf-8-sig')
                             with status_container:
                                 st.info(f"📊 Processing uploaded ticket data: {len(ticket_df)} records")
                         else:
@@ -557,7 +595,7 @@ def falcon_generator_dashboard():
 
                         for file_data in detection_status_files:
                             if file_data and 'file' in file_data:
-                                df = pd.read_csv(file_data['file'], encoding='utf-8-sig', errors='replace')
+                                df = pd.read_csv(file_data['file'], encoding='utf-8-sig')
                                 detection_status_dfs.append(df)
                                 detection_months.append(file_data['period'])
                                 with status_container:
@@ -628,12 +666,12 @@ def process_with_compositeid_case_detection(host_export_file, file1, file2=None,
     """Process with case-insensitive CompositeID detection"""
     
     try:
-        # Read export files with UTF-8 encoding and error handling
-        host_export_df = pd.read_csv(host_export_file, encoding='utf-8-sig', errors='replace')
-        df1 = pd.read_csv(file1, encoding='utf-8-sig', errors='replace')  # YOUR primary source
-        df2 = pd.read_csv(file2, encoding='utf-8-sig', errors='replace') if file2 else pd.DataFrame()
-        df3 = pd.read_csv(file3, encoding='utf-8-sig', errors='replace') if file3 else pd.DataFrame()
-        df4 = pd.read_csv(file4, encoding='utf-8-sig', errors='replace') if file4 else pd.DataFrame()
+        # Read export files with UTF-8 encoding
+        host_export_df = pd.read_csv(host_export_file, encoding='utf-8-sig')
+        df1 = pd.read_csv(file1, encoding='utf-8-sig')  # YOUR primary source
+        df2 = pd.read_csv(file2, encoding='utf-8-sig') if file2 else pd.DataFrame()
+        df3 = pd.read_csv(file3, encoding='utf-8-sig') if file3 else pd.DataFrame()
+        df4 = pd.read_csv(file4, encoding='utf-8-sig') if file4 else pd.DataFrame()
         
         # Track data quality
         data_notes = {
