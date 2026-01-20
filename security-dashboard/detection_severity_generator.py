@@ -78,7 +78,7 @@ def generate_detection_severity_analysis(detection_template_df, num_months=1):
         'raw_data': df  # Include full raw data for pivot table builder
     }
 
-    print(f"[Detection Analysis Generator] ✅ Generated {len(results)} analysis outputs")
+    print(f"[Detection Analysis Generator] Generated {len(results)} analysis outputs")
 
     return results
 

@@ -95,7 +95,7 @@ def generate_time_analysis(time_template_df, num_months=1):
         failed_samples = df[df['ParsedDateTime'].isna()][timestamp_col].head(5).tolist()
         print(f"[Time Analysis Generator] Sample failed timestamps: {failed_samples}")
     else:
-        print(f"[Time Analysis Generator] ✅ All {len(df)} timestamps parsed successfully!")
+        print(f"[Time Analysis Generator] SUCCESS: All {len(df)} timestamps parsed successfully!")
 
     # Remove rows with invalid dates
     df = df[df['ParsedDateTime'].notna()]
@@ -283,8 +283,8 @@ def generate_hourly_analysis(df, num_months):
     hourly_complete = hourly_complete[['Hour', 'Detection Count', 'Percentage', 'Period', 'Sort', 'Month']]
 
     print(f"[Time Analysis] HOURLY ANALYSIS generated: {len(hourly_complete)} row(s) - Fields: Hour, Detection Count, Percentage, Period, Sort, Month")
-    print(f"[Time Analysis] ✅ ALL 24 hours (0:00 → 23:00) included for each month, even with 0 detections")
-    print(f"[Time Analysis] Sorted by: Month (chronological) → Hour (0:00 → 23:00)")
+    print(f"[Time Analysis] ALL 24 hours (0:00 -> 23:00) included for each month, even with 0 detections")
+    print(f"[Time Analysis] Sorted by: Month (chronological) -> Hour (0:00 -> 23:00)")
     return hourly_complete
 
 
@@ -380,8 +380,8 @@ def generate_day_of_week_analysis(df, num_months):
     dow_complete = dow_complete[['Day', 'Detection Count', 'Percentage', 'Type', 'Sort', 'Month']]
 
     print(f"[Time Analysis] DAY OF WEEK ANALYSIS generated: {len(dow_complete)} row(s) - Fields: Day, Detection Count, Percentage, Type, Sort, Month")
-    print(f"[Time Analysis] ✅ ALL 7 days (Monday → Sunday) included for each month, even with 0 detections")
-    print(f"[Time Analysis] Sorted by: Month (chronological) → Day (Monday → Sunday)")
+    print(f"[Time Analysis] ALL 7 days (Monday -> Sunday) included for each month, even with 0 detections")
+    print(f"[Time Analysis] Sorted by: Month (chronological) -> Day (Monday -> Sunday)")
     return dow_complete
 
 
