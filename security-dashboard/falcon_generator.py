@@ -515,8 +515,9 @@ def falcon_generator_dashboard():
                 st.subheader(f"{label} (All Months)")
                 if not agg[k].empty:
                     st.dataframe(agg[k], use_container_width=True)
-                    csv_buffer = io.StringIO()
-                    agg[k].to_csv(csv_buffer, index=False)
+                    # Use BytesIO for proper UTF-8 encoding
+                    csv_buffer = io.BytesIO()
+                    agg[k].to_csv(csv_buffer, index=False, encoding='utf-8')
                     st.download_button(
                         label=f"📥 Download {label} (All Months, CSV)",
                         data=csv_buffer.getvalue(),
@@ -578,8 +579,10 @@ def falcon_generator_dashboard():
                             st.success(f"✅ Ticket Lifecycle Analysis: {len(ticket_results)} analysis outputs generated")
 
                     except Exception as e:
+                        # Convert error to string safely, avoiding encoding issues
+                        error_msg = str(e).encode('ascii', 'replace').decode('ascii')
                         with status_container:
-                            st.error(f"❌ Error generating ticket lifecycle analysis: {str(e)}")
+                            st.error(f"Error generating ticket lifecycle analysis: {error_msg}")
                             st.warning("Ticket analysis failed, but other templates are still available.")
 
                 # ============================================
@@ -1163,9 +1166,9 @@ def display_results_clean(templates: Dict, data_notes: Dict):
         
         if not host_df.empty:
             st.dataframe(host_df, use_container_width=True)
-            
-            csv_buffer = io.StringIO()
-            host_df.to_csv(csv_buffer, index=False)
+
+            csv_buffer = io.BytesIO()
+            host_df.to_csv(csv_buffer, index=False, encoding='utf-8')
             st.download_button(
                 label="📥 Download Host Analysis Template (CSV)",
                 data=csv_buffer.getvalue(),
@@ -1195,9 +1198,9 @@ def display_results_clean(templates: Dict, data_notes: Dict):
                     st.error("🌍 Country: 0 records filled - check CompositeId matching!")
             
             st.dataframe(detection_df, use_container_width=True)
-            
-            csv_buffer = io.StringIO()
-            detection_df.to_csv(csv_buffer, index=False)
+
+            csv_buffer = io.BytesIO()
+            detection_df.to_csv(csv_buffer, index=False, encoding='utf-8')
             st.download_button(
                 label="📥 Download Detection Analysis Template (CSV)",
                 data=csv_buffer.getvalue(),
@@ -1213,9 +1216,9 @@ def display_results_clean(templates: Dict, data_notes: Dict):
         
         if not time_df.empty:
             st.dataframe(time_df, use_container_width=True)
-            
-            csv_buffer = io.StringIO()
-            time_df.to_csv(csv_buffer, index=False)
+
+            csv_buffer = io.BytesIO()
+            time_df.to_csv(csv_buffer, index=False, encoding='utf-8')
             st.download_button(
                 label="📥 Download Time Analysis Template (CSV)",
                 data=csv_buffer.getvalue(),
