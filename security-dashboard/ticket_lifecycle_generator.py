@@ -1,13 +1,13 @@
 """
 Ticket Lifecycle Analysis Generator
-Generates analysis for Detection Status by Severity (Status x Severity pivot)
-Shows: Total Detections Count by Status and Severity for each month
+Generates Detection Status by Severity with Request ID pivot table format
+Shows: Request IDs grouped by Status, with Severity counts
 
 CSV Format Required:
 - Period: Month name (e.g., "October 2025", "November 2025")
 - Status: closed, in_progress, open, pending, on-hold
 - SeverityName: Critical, High, Medium, Low
-- Request ID: Detection identifier (optional)
+- Request ID: Detection identifier (REQUIRED)
 
 Developed by Izami Ariff © 2025
 """
@@ -18,14 +18,14 @@ from typing import Dict, List
 
 def generate_ticket_lifecycle_analysis(ticket_df: pd.DataFrame, num_months: int) -> Dict[str, pd.DataFrame]:
     """
-    Generate detection status analysis by severity
+    Generate detection status analysis by severity with Request ID pivot table
 
     Args:
-        ticket_df: DataFrame with ticket data (must have 'Period', 'Status', 'SeverityName' columns)
+        ticket_df: DataFrame with ticket data (must have 'Period', 'Status', 'SeverityName', 'Request ID' columns)
         num_months: Number of months in the data (1-3)
 
     Returns:
-        Dictionary with analysis results including Status x Severity pivot tables
+        Dictionary with analysis results including Request ID x Severity pivot tables
     """
 
     results = {}
@@ -39,7 +39,13 @@ def generate_ticket_lifecycle_analysis(ticket_df: pd.DataFrame, num_months: int)
     if 'Status' not in ticket_df.columns:
         ticket_df['Status'] = 'Unknown'
 
-    # Check for SeverityName column (new requirement)
+    # Request ID is required for this format
+    if 'Request ID' not in ticket_df.columns and 'RequestID' not in ticket_df.columns:
+        ticket_df['Request ID'] = range(1, len(ticket_df) + 1)
+    elif 'RequestID' in ticket_df.columns:
+        ticket_df['Request ID'] = ticket_df['RequestID']
+
+    # Check for SeverityName column (required)
     has_severity = 'SeverityName' in ticket_df.columns or 'Severity' in ticket_df.columns
 
     if not has_severity:
@@ -92,100 +98,74 @@ def generate_ticket_lifecycle_analysis(ticket_df: pd.DataFrame, num_months: int)
     # Create Month column (same as Period for consistency)
     ticket_df['Month'] = ticket_df['Period']
 
-    # Add Request ID if not present
-    if 'Request ID' not in ticket_df.columns and 'RequestID' not in ticket_df.columns:
-        ticket_df['Request ID'] = range(1, len(ticket_df) + 1)
-
     # ============================================
-    # 1. Ticket Status Overview (3-month trend)
-    # ============================================
-    # Count tickets by Status and Month
-    status_counts = ticket_df.groupby(['Month', 'Status']).size().reset_index(name='Count')
-
-    # Pivot to have Status as rows, Month as columns for easier visualization
-    status_pivot = status_counts.pivot_table(
-        index='Status',
-        columns='Month',
-        values='Count',
-        fill_value=0
-    ).reset_index()
-
-    # Also create a format suitable for bar charts (Month, Status, Count)
-    results['ticket_status_trend'] = status_counts
-    results['ticket_status_pivot'] = status_pivot
-
-    # ============================================
-    # 2. Monthly Ticket Summary (for key metrics cards)
-    # ============================================
-    # Total tickets per month
-    monthly_totals = ticket_df.groupby('Month').size().reset_index(name='Total Tickets')
-
-    # Status breakdown per month
-    monthly_breakdown = ticket_df.groupby(['Month', 'Status']).size().reset_index(name='Count')
-
-    # Pivot for easier access
-    monthly_breakdown_pivot = monthly_breakdown.pivot_table(
-        index='Month',
-        columns='Status',
-        values='Count',
-        fill_value=0
-    ).reset_index()
-
-    results['monthly_summary'] = monthly_breakdown_pivot
-    results['monthly_totals'] = monthly_totals
-
-    # ============================================
-    # 3. Status Distribution (for pie/donut charts)
-    # ============================================
-    # Overall status distribution across all months
-    status_distribution = ticket_df.groupby('Status').size().reset_index(name='Count')
-    status_distribution['Percentage'] = (status_distribution['Count'] / status_distribution['Count'].sum() * 100).round(2)
-    results['status_distribution'] = status_distribution
-
-    # ============================================
-    # 4. Detection Status by Severity (NEW - Status x Severity Pivot)
-    # ============================================
-    # Create pivot table: Status (rows) x Severity (columns) with Request ID count
-    # This shows "Total Detections Count by Status and Severity" per month
-
     # Process each month separately
+    # ============================================
     for month in ticket_df['Month'].unique():
         month_df = ticket_df[ticket_df['Month'] == month].copy()
-
-        # Create pivot table: Status x SeverityName
-        status_severity_pivot = pd.pivot_table(
-            month_df,
-            values='Request ID',
-            index='Count of SeverityName\nStatus',  # This creates the row header
-            columns='SeverityName',
-            aggfunc='count',
-            fill_value=0
-        )
-
-        # Actually, let's create it properly with Status as index
-        status_severity_pivot = pd.crosstab(
-            month_df['Status'],
-            month_df['SeverityName'],
-            margins=True,
-            margins_name='Grand Total'
-        )
-
-        # Store with month-specific key
         month_safe = month.replace(' ', '_').replace(',', '')
-        results[f'status_severity_{month_safe}'] = status_severity_pivot
 
-        # Also create data suitable for stacked bar charts
-        chart_data = month_df.groupby(['Status', 'SeverityName']).size().reset_index(name='Count')
-        results[f'status_severity_chart_{month_safe}'] = chart_data
+        # ============================================
+        # 1. NEW FORMAT: Request ID x Severity Pivot Table
+        # Rows: Grouped by Status, then Request ID
+        # Columns: Critical, High, Medium, Low
+        # ============================================
 
-    # Create overall Status x Severity pivot (all months combined)
-    status_severity_overall = pd.crosstab(
-        ticket_df['Status'],
-        ticket_df['SeverityName'],
-        margins=True,
-        margins_name='Grand Total'
-    )
-    results['status_severity_overall'] = status_severity_overall
+        # Create the pivot table with Request ID and Status as multi-index
+        pivot_data = []
+
+        # Group by Status first, then by Request ID within each status
+        for status in ['closed', 'in_progress', 'open', 'pending', 'on-hold']:
+            status_df = month_df[month_df['Status'] == status]
+
+            if not status_df.empty:
+                # Get unique Request IDs for this status
+                request_ids = status_df['Request ID'].unique()
+
+                for req_id in request_ids:
+                    req_df = status_df[status_df['Request ID'] == req_id]
+
+                    # Count severity for this Request ID
+                    row_data = {
+                        'Status': status,
+                        'Request ID': req_id,
+                        'Critical': len(req_df[req_df['SeverityName'] == 'Critical']),
+                        'High': len(req_df[req_df['SeverityName'] == 'High']),
+                        'Medium': len(req_df[req_df['SeverityName'] == 'Medium']),
+                        'Low': len(req_df[req_df['SeverityName'] == 'Low'])
+                    }
+                    pivot_data.append(row_data)
+
+        # Create DataFrame
+        pivot_df = pd.DataFrame(pivot_data)
+
+        # Store the pivot table
+        results[f'request_severity_pivot_{month_safe}'] = pivot_df
+
+        # ============================================
+        # 2. Ticket Summary Metrics (Section A.2)
+        # ============================================
+        total_alerts = len(month_df)
+        alerts_resolved = len(month_df[month_df['Status'] == 'closed'])
+        alerts_pending = len(month_df[month_df['Status'].isin(['open', 'pending', 'on-hold', 'in_progress'])])
+
+        summary_data = {
+            'total_alerts': total_alerts,
+            'alerts_resolved': alerts_resolved,
+            'alerts_pending': alerts_pending
+        }
+
+        results[f'ticket_summary_{month_safe}'] = summary_data
+
+        # ============================================
+        # 3. Chart Data for visualization
+        # ============================================
+        # Stacked bar chart data: Request ID x Severity
+        chart_data = month_df.groupby(['Request ID', 'Status', 'SeverityName']).size().reset_index(name='Count')
+        results[f'chart_data_{month_safe}'] = chart_data
+
+        # Store raw data for export
+        results[f'raw_data_{month_safe}'] = month_df
 
     return results
 

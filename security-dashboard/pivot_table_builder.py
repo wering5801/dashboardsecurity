@@ -633,6 +633,58 @@ def pivot_table_builder_dashboard():
         if use_ticket_status_colors:
             st.caption("🟢 Closed  🔴 Open  🟡 On-hold  ⚫ Pending")
 
+        # Ticket Lifecycle Summary Configuration
+        if analysis_category == "Ticket Lifecycle Analysis":
+            st.markdown("---")
+            st.markdown("**📊 Ticket Lifecycle Summary Settings**")
+            st.caption("Configure the values shown in Section A.2 (Summary for Detections)")
+
+            # Initialize ticket_lifecycle_summary if not exists
+            if 'ticket_lifecycle_summary' not in st.session_state.get('pivot_config', {}):
+                st.session_state['pivot_config']['ticket_lifecycle_summary'] = {}
+
+            # Get current values from session state or defaults
+            ticket_summary_config = st.session_state['pivot_config']['ticket_lifecycle_summary']
+
+            col1, col2 = st.columns(2)
+            with col1:
+                total_alerts = st.number_input(
+                    "🔢 Number of alerts triggered",
+                    min_value=0,
+                    value=ticket_summary_config.get('total_alerts', 17),
+                    step=1,
+                    help="Total number of alerts triggered this month",
+                    key="config_total_alerts"
+                )
+
+            with col2:
+                alerts_resolved = st.number_input(
+                    "✅ Number of alerts resolved",
+                    min_value=0,
+                    value=ticket_summary_config.get('alerts_resolved', 16),
+                    step=1,
+                    help="Number of alerts that are closed/resolved",
+                    key="config_alerts_resolved"
+                )
+
+            alerts_pending = st.number_input(
+                "⏳ Number of alerts pending",
+                min_value=0,
+                value=ticket_summary_config.get('alerts_pending', 1),
+                step=1,
+                help="Number of alerts still in pending/open/on-hold/in_progress status",
+                key="config_alerts_pending"
+            )
+
+            # Store in session state
+            st.session_state['pivot_config']['ticket_lifecycle_summary'] = {
+                'total_alerts': total_alerts,
+                'alerts_resolved': alerts_resolved,
+                'alerts_pending': alerts_pending
+            }
+
+            st.caption("💡 These values will be displayed in the Ticket Lifecycle Summary section")
+
         # Monthly Color Settings
         st.markdown("---")
         st.markdown("**📅 Monthly Trend Colors**")

@@ -435,43 +435,179 @@ def calculate_summary_statistics():
 
 
 def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insights, section_letter='A'):
-    """Render Ticket Lifecycle Analysis section"""
-    from pivot_table_builder import create_pivot_table, create_pivot_chart
+    """Render Ticket Lifecycle Analysis section with Request ID pivot table"""
+    import plotly.graph_objects as go
 
     st.markdown('<div class="section-container">', unsafe_allow_html=True)
     st.markdown(f'<div class="section-header"><div class="section-icon">🎫</div><h2 class="section-title">{section_letter}. Ticket Lifecycle Analysis</h2></div>', unsafe_allow_html=True)
 
     ticket_results = st.session_state['ticket_lifecycle_results']
 
-    # Ticket Status Trend (3-month overview)
-    if 'ticket_status_trend' in ticket_results:
+    # Get number of months from session state
+    num_months = st.session_state.get('num_months', 1)
+
+    # Determine which months are available
+    available_months = []
+    for key in ticket_results.keys():
+        if key.startswith('request_severity_pivot_'):
+            month_name = key.replace('request_severity_pivot_', '').replace('_', ' ')
+            available_months.append(month_name)
+
+    if not available_months:
+        st.warning("No ticket data available")
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
+    # Process each month
+    for idx, month_name in enumerate(sorted(available_months)):
+        month_safe = month_name.replace(' ', '_').replace(',', '')
+
+        # Get data for this month
+        pivot_key = f'request_severity_pivot_{month_safe}'
+        summary_key = f'ticket_summary_{month_safe}'
+
+        if pivot_key not in ticket_results or summary_key not in ticket_results:
+            continue
+
+        pivot_df = ticket_results[pivot_key]
+        summary_data = ticket_results[summary_key]
+
+        # ============================
+        # A.1: Request ID Pivot Table
+        # ============================
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown(f'<h3 class="analysis-title">{section_letter}.1. Ticket Status Count Across {month_text} (Open, Pending, On-hold, Closed)</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.1. Count of SeverityName / Status / Request ID for {month_name}</h3>', unsafe_allow_html=True)
 
-        config = {
-            'rows': ['Month'],
-            'columns': ['Status'],
-            'values': ['Count'],
-            'aggregation': 'sum',
-            'chart_type': 'Bar Chart',
-            'use_monthly_colors': True
-        }
+        if not pivot_df.empty:
+            # Display the pivot table with styling
+            st.markdown(f"### Total Detections Count by Status and Severity for {month_name}")
 
-        pivot_table = create_pivot_table(ticket_results['ticket_status_trend'], config, 'ticket_status_trend')
+            # Create styled dataframe
+            def style_severity_columns(val):
+                if isinstance(val, (int, float)) and val > 0:
+                    return 'background-color: #f0f0f0; font-weight: bold'
+                return ''
 
-        if pivot_table is not None and not pivot_table.empty:
-            chart = create_pivot_chart(pivot_table, 'Bar Chart', chart_height, config, 'ticket_status_trend')
-            if chart:
-                st.plotly_chart(chart, use_container_width=True)
+            # Display table grouped by Status
+            for status in pivot_df['Status'].unique():
+                status_df = pivot_df[pivot_df['Status'] == status]
 
-            if show_data_tables:
-                with st.expander("📊 View Data Table"):
-                    st.dataframe(ticket_results['ticket_status_trend'], use_container_width=True)
+                if not status_df.empty:
+                    st.markdown(f"**{status.upper()}**")
+
+                    # Display without Status column (already shown as header)
+                    display_df = status_df[['Request ID', 'Critical', 'High', 'Medium', 'Low']].copy()
+
+                    # Apply styling
+                    styled_df = display_df.style.applymap(style_severity_columns, subset=['Critical', 'High', 'Medium', 'Low'])
+                    st.dataframe(styled_df, use_container_width=True, hide_index=True)
+
+            # Create stacked bar chart
+            st.markdown(f"### Total Detections Count by Status and Severity for {month_name}")
+
+            # Prepare chart data
+            chart_df = pivot_df.copy()
+
+            # Create figure
+            fig = go.Figure()
+
+            # Color mapping for severities
+            severity_colors = {
+                'Critical': '#DC143C',
+                'High': '#FF8C00',
+                'Medium': '#4169E1',
+                'Low': '#70AD47'
+            }
+
+            # Add bars for each severity
+            for severity in ['Critical', 'High', 'Medium', 'Low']:
+                if severity in chart_df.columns:
+                    fig.add_trace(go.Bar(
+                        name=severity,
+                        x=chart_df['Request ID'].astype(str) + ' (' + chart_df['Status'] + ')',
+                        y=chart_df[severity],
+                        marker_color=severity_colors[severity],
+                        text=chart_df[severity],
+                        textposition='inside',
+                        textfont=dict(color='white', size=10),
+                        hovertemplate=f'<b>{severity}</b><br>Count: %{{y}}<extra></extra>'
+                    ))
+
+            fig.update_layout(
+                barmode='stack',
+                title=dict(
+                    text=f"Total Detections Count by Status and Severity for {month_name}",
+                    font=dict(size=16)
+                ),
+                xaxis_title="Detection Request Status",
+                yaxis_title="Number of Detections",
+                height=500,
+                showlegend=True,
+                legend=dict(
+                    title="Severity",
+                    orientation="v",
+                    yanchor="top",
+                    y=1,
+                    xanchor="left",
+                    x=1.02
+                ),
+                hovermode='x unified'
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # ============================
+        # A.2: Summary for Detections
+        # ============================
+        st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.2. Summary for {month_name} Detections</h3>', unsafe_allow_html=True)
+
+        # Get configuration values (with defaults)
+        config = st.session_state.get('pivot_config', {})
+        ticket_summary_config = config.get('ticket_lifecycle_summary', {})
+
+        # Default values
+        total_alerts = summary_data.get('total_alerts', 0)
+        alerts_resolved = summary_data.get('alerts_resolved', 0)
+        alerts_pending = summary_data.get('alerts_pending', 0)
+
+        # Check for user-configured values
+        if ticket_summary_config:
+            total_alerts = ticket_summary_config.get('total_alerts', total_alerts)
+            alerts_resolved = ticket_summary_config.get('alerts_resolved', alerts_resolved)
+            alerts_pending = ticket_summary_config.get('alerts_pending', alerts_pending)
+
+        # Get pending request IDs
+        pending_requests = pivot_df[pivot_df['Status'].isin(['open', 'pending', 'on-hold', 'in_progress'])]['Request ID'].unique()
+        pending_request_str = ', '.join([f"Request ID : {req}" for req in pending_requests]) if len(pending_requests) > 0 else "None"
+
+        # Create summary table
+        summary_df = pd.DataFrame({
+            'Summary for November Detections': [
+                'Number of alert triggered this month',
+                'Number of alert resolve',
+                'Number of alert pending'
+            ],
+            '': [
+                total_alerts,
+                alerts_resolved,
+                f"{alerts_pending}"
+            ],
+            'Details': [
+                '',
+                '',
+                pending_request_str
+            ]
+        })
+
+        st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
         if show_insights:
-            st.markdown("""
+            st.markdown(f"""
                 <div class="insight-box">
-                    <strong>💡 Key Insight:</strong> Track ticket resolution trends across multiple months to identify patterns in incident response times and workload management.
+                    <strong>💡 Key Insight:</strong> For {month_name}, {alerts_resolved} out of {total_alerts} alerts were resolved ({(alerts_resolved/total_alerts*100 if total_alerts > 0 else 0):.1f}% resolution rate). {alerts_pending} alerts remain pending or in progress.
                 </div>
             """, unsafe_allow_html=True)
 

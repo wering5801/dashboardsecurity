@@ -200,34 +200,67 @@ def falcon_generator_dashboard():
     # TICKET LIFECYCLE DATA UPLOAD (OPTIONAL)
     # ============================================
     st.markdown("---")
-    st.header("🎫 Ticket Lifecycle Data (Optional)")
+    st.header("🎫 Detection Status by Severity Analysis (Optional)")
     st.markdown("""
-    **Optional Section:** Upload ticket data for lifecycle analysis (Open, Pending, On-hold, Closed status tracking).
+    **Optional Section:** Upload detection data showing **Status + Severity** for comprehensive analysis.
+
+    This creates a **pivot table** showing: **Total Detections Count by Status and Severity**
 
     You can either:
-    - **Upload a CSV file** with ticket data containing these **required columns**:
+    - **Upload a CSV file** with detection data containing these **required columns**:
       - `Period` (e.g., "October 2025", "November 2025", "December 2025")
-      - `Status` (must be one of: "Open", "Pending", "On-hold", "Closed")
-    - **Use placeholder data** (you can edit the numbers later in `ticket_lifecycle_generator.py`)
-    - **Skip this section** if you don't need ticket lifecycle analysis
+      - `Status` (closed, in_progress, open, pending, on-hold)
+      - `SeverityName` (Critical, High, Medium, Low) - **NEW REQUIRED**
+      - `Request ID` (Detection identifier)
+    - **Use placeholder data** (auto-generates with Status + Severity)
+    - **Skip this section** if you don't need this analysis
 
-    📄 **Sample CSV Format:** See `sample_ticket_data.csv` in the project folder for an example file format.
+    📄 **Sample CSV Format:** See `sample_ticket_data.csv` for November 2025 example
 
-    **Additional columns (optional):** TicketID, CreatedDate, Category, Priority
+    **Output:** Pivot table showing Status (rows) x Severity (columns) with detection counts
     """)
 
     use_ticket_data = st.checkbox("Include Ticket Lifecycle Analysis", value=False)
     ticket_upload_file = None
 
     if use_ticket_data:
+        # Download sample CSV template
+        st.markdown("### 📥 Download Sample CSV Template")
+
+        # Load the sample CSV
+        try:
+            with open('security-dashboard/sample_ticket_data.csv', 'r') as f:
+                sample_csv_content = f.read()
+
+            st.download_button(
+                label="📥 Download Sample CSV Template",
+                data=sample_csv_content,
+                file_name="ticket_lifecycle_template.csv",
+                mime="text/csv",
+                help="Download this template and fill it with your data"
+            )
+            st.caption("💡 This template shows the exact format required for ticket lifecycle analysis")
+        except FileNotFoundError:
+            st.warning("Sample CSV file not found. Using inline template.")
+
         # Show format guide
         with st.expander("📖 View CSV Format Requirements", expanded=False):
             st.markdown("""
             **Required Columns:**
             - `Period`: Month name (e.g., "October 2025", "November 2025", "December 2025")
-            - `Status`: One of "Open", "Pending", "On-hold", "Closed" (case-sensitive)
+            - `Status`: closed, in_progress, open, pending, on-hold
+            - `SeverityName`: Critical, High, Medium, Low (**REQUIRED**)
+            - `Request ID`: Detection identifier (e.g., 503457, 503528)
 
             **Sample Format:**
+            ```
+            Period,Status,SeverityName,Request ID
+            November 2025,closed,Critical,503528
+            November 2025,closed,High,503457
+            November 2025,in_progress,Medium,513757
+            ```
+
+            **Old Format (without SeverityName) - Still Works:**
             ```
             TicketID,Period,Status,CreatedDate,Category,Priority
             TKT-00001,October 2025,Open,2025-10-05,Security Incident,High
@@ -330,25 +363,13 @@ def falcon_generator_dashboard():
             st.session_state['ticket_config_per_month'] = ticket_config_per_month
 
     # ============================================
-    # DETECTION STATUS DATA (STATUS + SEVERITY)
+    # DETECTION STATUS DATA (STATUS + SEVERITY) - HIDDEN
+    # This functionality is now merged into Ticket Lifecycle above
     # ============================================
-    st.markdown("---")
-    st.header("📊 Detection Status by Severity (Optional)")
-    st.markdown("""
-    **Optional Section:** Upload detection data showing **Status + Severity** for comprehensive analysis.
+    # st.markdown("---")
+    # st.header("📊 Detection Status by Severity (Optional)")
 
-    This creates a **pivot table** showing detections by both **Status** (closed, in_progress, open)
-    and **Severity** (Critical, High, Medium, Low).
-
-    **Required columns:**
-    - `Status` - Detection status (closed, in_progress, open, pending, on-hold)
-    - `SeverityName` - Detection severity (Critical, High, Medium, Low)
-    - `Request ID` - Detection identifier (optional but recommended)
-
-    📄 **Sample File:** See `sample_detection_status_november.csv` for format example
-    """)
-
-    use_detection_status = st.checkbox("Include Detection Status Analysis", value=False)
+    use_detection_status = False  # Disabled - now part of Ticket Lifecycle
     detection_status_files = []
 
     if use_detection_status:
