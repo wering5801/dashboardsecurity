@@ -1,6 +1,14 @@
 """
 Ticket Lifecycle Analysis Generator
-Generates 3-month trend analysis for ticket status (Open, Pending, On-hold, Closed)
+Generates analysis for Detection Status by Severity (Status x Severity pivot)
+Shows: Total Detections Count by Status and Severity for each month
+
+CSV Format Required:
+- Period: Month name (e.g., "October 2025", "November 2025")
+- Status: closed, in_progress, open, pending, on-hold
+- SeverityName: Critical, High, Medium, Low
+- Request ID: Detection identifier (optional)
+
 Developed by Izami Ariff © 2025
 """
 
@@ -10,14 +18,14 @@ from typing import Dict, List
 
 def generate_ticket_lifecycle_analysis(ticket_df: pd.DataFrame, num_months: int) -> Dict[str, pd.DataFrame]:
     """
-    Generate ticket lifecycle analysis from ticket data
+    Generate detection status analysis by severity
 
     Args:
-        ticket_df: DataFrame with ticket data (must have 'Period', 'Status' columns)
+        ticket_df: DataFrame with ticket data (must have 'Period', 'Status', 'SeverityName' columns)
         num_months: Number of months in the data (1-3)
 
     Returns:
-        Dictionary with ticket lifecycle analysis results
+        Dictionary with analysis results including Status x Severity pivot tables
     """
 
     results = {}
@@ -31,8 +39,62 @@ def generate_ticket_lifecycle_analysis(ticket_df: pd.DataFrame, num_months: int)
     if 'Status' not in ticket_df.columns:
         ticket_df['Status'] = 'Unknown'
 
+    # Check for SeverityName column (new requirement)
+    has_severity = 'SeverityName' in ticket_df.columns or 'Severity' in ticket_df.columns
+
+    if not has_severity:
+        # Add default severity if not provided
+        ticket_df['SeverityName'] = 'N/A'
+    elif 'Severity' in ticket_df.columns and 'SeverityName' not in ticket_df.columns:
+        ticket_df['SeverityName'] = ticket_df['Severity']
+
+    # Normalize severity values
+    severity_mapping = {
+        'critical': 'Critical',
+        'Critical': 'Critical',
+        'CRITICAL': 'Critical',
+        'high': 'High',
+        'High': 'High',
+        'HIGH': 'High',
+        'medium': 'Medium',
+        'Medium': 'Medium',
+        'MEDIUM': 'Medium',
+        'low': 'Low',
+        'Low': 'Low',
+        'LOW': 'Low',
+        'N/A': 'N/A',
+        'n/a': 'N/A'
+    }
+    ticket_df['SeverityName'] = ticket_df['SeverityName'].fillna('N/A').map(severity_mapping).fillna(ticket_df['SeverityName'])
+
+    # Normalize status values
+    status_mapping = {
+        'closed': 'closed',
+        'Closed': 'closed',
+        'CLOSED': 'closed',
+        'in_progress': 'in_progress',
+        'In Progress': 'in_progress',
+        'IN_PROGRESS': 'in_progress',
+        'in progress': 'in_progress',
+        'open': 'open',
+        'Open': 'open',
+        'OPEN': 'open',
+        'pending': 'pending',
+        'Pending': 'pending',
+        'PENDING': 'pending',
+        'on-hold': 'on-hold',
+        'On-hold': 'on-hold',
+        'ON-HOLD': 'on-hold',
+        'on hold': 'on-hold'
+    }
+    ticket_df['Status'] = ticket_df['Status'].map(status_mapping).fillna(ticket_df['Status'])
+
     # Create Month column (same as Period for consistency)
     ticket_df['Month'] = ticket_df['Period']
+
+    # Add Request ID if not present
+    if 'Request ID' not in ticket_df.columns and 'RequestID' not in ticket_df.columns:
+        ticket_df['Request ID'] = range(1, len(ticket_df) + 1)
 
     # ============================================
     # 1. Ticket Status Overview (3-month trend)
@@ -80,6 +142,51 @@ def generate_ticket_lifecycle_analysis(ticket_df: pd.DataFrame, num_months: int)
     status_distribution['Percentage'] = (status_distribution['Count'] / status_distribution['Count'].sum() * 100).round(2)
     results['status_distribution'] = status_distribution
 
+    # ============================================
+    # 4. Detection Status by Severity (NEW - Status x Severity Pivot)
+    # ============================================
+    # Create pivot table: Status (rows) x Severity (columns) with Request ID count
+    # This shows "Total Detections Count by Status and Severity" per month
+
+    # Process each month separately
+    for month in ticket_df['Month'].unique():
+        month_df = ticket_df[ticket_df['Month'] == month].copy()
+
+        # Create pivot table: Status x SeverityName
+        status_severity_pivot = pd.pivot_table(
+            month_df,
+            values='Request ID',
+            index='Count of SeverityName\nStatus',  # This creates the row header
+            columns='SeverityName',
+            aggfunc='count',
+            fill_value=0
+        )
+
+        # Actually, let's create it properly with Status as index
+        status_severity_pivot = pd.crosstab(
+            month_df['Status'],
+            month_df['SeverityName'],
+            margins=True,
+            margins_name='Grand Total'
+        )
+
+        # Store with month-specific key
+        month_safe = month.replace(' ', '_').replace(',', '')
+        results[f'status_severity_{month_safe}'] = status_severity_pivot
+
+        # Also create data suitable for stacked bar charts
+        chart_data = month_df.groupby(['Status', 'SeverityName']).size().reset_index(name='Count')
+        results[f'status_severity_chart_{month_safe}'] = chart_data
+
+    # Create overall Status x Severity pivot (all months combined)
+    status_severity_overall = pd.crosstab(
+        ticket_df['Status'],
+        ticket_df['SeverityName'],
+        margins=True,
+        margins_name='Grand Total'
+    )
+    results['status_severity_overall'] = status_severity_overall
+
     return results
 
 
@@ -100,12 +207,18 @@ def create_placeholder_ticket_data(months: List[str], custom_counts_per_month: D
         DataFrame with placeholder ticket data
     """
 
-    # Define ticket statuses
+    # Define ticket statuses and severities
     statuses = ['Open', 'Pending', 'On-hold', 'Closed']
+    severities = ['Critical', 'High', 'Medium', 'Low']
+
+    # Severity distribution weights
+    severity_weights = [0.1, 0.3, 0.4, 0.2]  # Critical, High, Medium, Low
 
     # Create placeholder data
     data = []
     ticket_id = 1
+
+    import random
 
     for month in months:
         # Use custom counts for this specific month if provided, otherwise use defaults
@@ -123,10 +236,15 @@ def create_placeholder_ticket_data(months: List[str], custom_counts_per_month: D
         # Create records for each status
         for status, count in ticket_counts.items():
             for _ in range(count):
+                # Assign severity based on weights
+                severity = random.choices(severities, weights=severity_weights)[0]
+
                 data.append({
                     'TicketID': f'TKT-{ticket_id:05d}',
                     'Period': month,
                     'Status': status,
+                    'SeverityName': severity,  # NEW: Add severity
+                    'Request ID': 500000 + ticket_id,  # NEW: Add Request ID
                     'CreatedDate': f'{month}-01',  # Placeholder date
                     'Category': 'Security Incident',  # Placeholder category
                     'Priority': 'Medium'  # Placeholder priority

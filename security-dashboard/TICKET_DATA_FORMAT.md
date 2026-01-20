@@ -1,10 +1,10 @@
-# Ticket Lifecycle Data Format Guide
+# Detection Status by Severity Data Format Guide
 
-This guide explains how to prepare your ticket data for the Ticket Lifecycle Management section of the Falcon Security Dashboard.
+This guide explains how to prepare your detection data for the **Detection Status by Severity** analysis - showing detections by both Status AND Severity level.
 
 ## 📋 Required CSV Format
 
-Your ticket data CSV file must contain the following **required columns**:
+Your detection data CSV file must contain the following **required columns**:
 
 ### Required Columns:
 
@@ -14,41 +14,63 @@ Your ticket data CSV file must contain the following **required columns**:
    - Example: `"October 2025"`, `"November 2025"`, `"December 2025"`
 
 2. **Status** (string)
-   - Must be exactly one of these four values:
-     - `"Open"` - Active tickets awaiting action
-     - `"Pending"` - Tickets awaiting response/information
-     - `"On-hold"` - Tickets temporarily paused
-     - `"Closed"` - Resolved tickets
-   - ⚠️ **Case-sensitive**: Use exact capitalization as shown above
+   - Must be one of these values:
+     - `"closed"` - Resolved detections
+     - `"in_progress"` - Detections being investigated
+     - `"open"` - New/active detections
+     - `"pending"` - Awaiting action/response
+     - `"on-hold"` - Temporarily paused
+   - Note: lowercase preferred but will be normalized automatically
+
+3. **SeverityName** (string) - **NEW REQUIRED COLUMN**
+   - Must be one of these values:
+     - `"Critical"` - Most severe detections
+     - `"High"` - High severity detections
+     - `"Medium"` - Medium severity detections
+     - `"Low"` - Low severity detections
+   - This creates the Status x Severity pivot table
+
+4. **Request ID** (string/number)
+   - Detection identifier (e.g., "503457", "503528", "513757")
+   - Can use "N/A" if no ID available
+   - Used for counting detections
 
 ### Optional Columns:
 
 These columns are not required but can be included for record-keeping:
 
 - **TicketID** (string) - Unique ticket identifier (e.g., "TKT-00001")
-- **CreatedDate** (date/string) - Date ticket was created (e.g., "2025-10-05")
-- **Category** (string) - Ticket category (e.g., "Security Incident", "Access Request")
-- **Priority** (string) - Ticket priority level (e.g., "Critical", "High", "Medium", "Low")
+- **CreatedDate** (date/string) - Date detection was created (e.g., "2025-10-05")
+- **Category** (string) - Detection category (e.g., "Malware", "Phishing")
+- **Priority** (string) - Priority level
 
 ---
 
 ## 📄 Sample CSV File
 
-A sample CSV file ([sample_ticket_data.csv](sample_ticket_data.csv)) is provided in the project folder with the following structure:
+A sample CSV file ([sample_ticket_data.csv](sample_ticket_data.csv)) is provided with the exact format matching your November 2025 data:
 
 ```csv
-TicketID,Period,Status,CreatedDate,Category,Priority
-TKT-00001,October 2025,Open,2025-10-05,Security Incident,High
-TKT-00002,October 2025,Pending,2025-10-08,Security Incident,High
-TKT-00003,October 2025,On-hold,2025-10-10,Security Incident,Medium
-TKT-00004,October 2025,Closed,2025-10-03,Security Incident,Critical
-TKT-00005,November 2025,Open,2025-11-02,Security Incident,High
-TKT-00006,November 2025,Pending,2025-11-07,Security Incident,Low
-TKT-00007,November 2025,On-hold,2025-11-11,Security Incident,High
-TKT-00008,November 2025,Closed,2025-11-05,Security Incident,Critical
-TKT-00009,December 2025,Open,2025-12-03,Security Incident,High
-TKT-00010,December 2025,Pending,2025-12-06,Security Incident,High
-TKT-00011,December 2025,On-hold,2025-12-11,Security Incident,Low
+Period,Status,SeverityName,Request ID
+November 2025,closed,Critical,503528
+November 2025,closed,High,503457
+November 2025,closed,High,503479
+November 2025,closed,High,503528
+November 2025,closed,Low,N/A
+November 2025,closed,Medium,503900
+November 2025,in_progress,Medium,513757
+```
+
+### Output - Pivot Table:
+
+This CSV creates a pivot table showing **Total Detections Count by Status and Severity**:
+
+```
+Status       | Critical | High | Medium | Low | Grand Total
+-------------|----------|------|--------|-----|------------
+closed       |    1     |  10  |   3    |  2  |     16
+in_progress  |    0     |   0  |   1    |  0  |      1
+Grand Total  |    1     |  10  |   4    |  2  |     17
 TKT-00012,December 2025,Closed,2025-12-04,Security Incident,Critical
 ```
 

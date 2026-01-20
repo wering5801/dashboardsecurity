@@ -1,28 +1,18 @@
-TicketID,Period,Status,CreatedDate,Category,Priority
-TKT-00001,October 2025,Open,2025-10-05,Security Incident,High
-TKT-00002,October 2025,Open,2025-10-12,Security Incident,Medium
-TKT-00003,October 2025,Pending,2025-10-08,Security Incident,High
-TKT-00004,October 2025,Pending,2025-10-15,Security Incident,Low
-TKT-00005,October 2025,On-hold,2025-10-10,Security Incident,Medium
-TKT-00006,October 2025,Closed,2025-10-03,Security Incident,Critical
-TKT-00007,October 2025,Closed,2025-10-18,Security Incident,High
-TKT-00008,October 2025,Closed,2025-10-22,Security Incident,Medium
-TKT-00009,November 2025,Open,2025-11-02,Security Incident,High
-TKT-00010,November 2025,Open,2025-11-14,Security Incident,Medium
-TKT-00011,November 2025,Pending,2025-11-07,Security Incident,Low
-TKT-00012,November 2025,Pending,2025-11-19,Security Incident,Medium
-TKT-00013,November 2025,On-hold,2025-11-11,Security Incident,High
-TKT-00014,November 2025,On-hold,2025-11-23,Security Incident,Medium
-TKT-00015,November 2025,Closed,2025-11-05,Security Incident,Critical
-TKT-00016,November 2025,Closed,2025-11-16,Security Incident,High
-TKT-00017,November 2025,Closed,2025-11-28,Security Incident,Medium
-TKT-00018,December 2025,Open,2025-12-03,Security Incident,High
-TKT-00019,December 2025,Open,2025-12-09,Security Incident,Medium
-TKT-00020,December 2025,Open,2025-12-17,Security Incident,Low
-TKT-00021,December 2025,Pending,2025-12-06,Security Incident,High
-TKT-00022,December 2025,Pending,2025-12-13,Security Incident,Medium
-TKT-00023,December 2025,On-hold,2025-12-11,Security Incident,Low
-TKT-00024,December 2025,Closed,2025-12-04,Security Incident,Critical
-TKT-00025,December 2025,Closed,2025-12-15,Security Incident,High
-TKT-00026,December 2025,Closed,2025-12-20,Security Incident,Medium
-TKT-00027,December 2025,Closed,2025-12-27,Security Incident,Low
+Period,Status,SeverityName,Request ID
+November 2025,closed,Critical,503528
+November 2025,closed,High,503457
+November 2025,closed,High,503457
+November 2025,closed,High,503479
+November 2025,closed,High,503528
+November 2025,closed,High,503528
+November 2025,closed,High,503528
+November 2025,closed,High,503528
+November 2025,closed,High,503528
+November 2025,closed,High,503528
+November 2025,closed,High,503528
+November 2025,closed,Low,N/A
+November 2025,closed,Low,N/A
+November 2025,closed,Medium,503900
+November 2025,closed,Medium,503900
+November 2025,closed,Medium,503900
+November 2025,in_progress,Medium,513757
