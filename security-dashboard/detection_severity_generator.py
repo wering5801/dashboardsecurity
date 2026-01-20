@@ -98,7 +98,7 @@ def generate_detection_key_metrics(df, num_months):
     long_format_rows = []
 
     if num_months > 1:
-        # Multi-month analysis - create row for each metric × month
+        # Multi-month analysis - create row for each metric x month
         for month in sorted(df['Month'].unique()):
             month_df = df[df['Month'] == month]
 
@@ -221,7 +221,7 @@ def generate_geographic_analysis(df, num_months, top_n=10):
     # Get all unique months in the dataset
     all_months = sorted(df_geo['Month'].unique())
 
-    # Create a complete matrix: every top N country × every month
+    # Create a complete matrix: every top N country x every month
     complete_rows = []
     for country in top_countries:
         for month in all_months:
@@ -301,7 +301,7 @@ def generate_file_analysis(df, num_months, top_n=10):
     # Get all unique months in the dataset
     all_months = sorted(df_files['Month'].unique())
 
-    # Create a complete matrix: every top N file × every month
+    # Create a complete matrix: every top N file x every month
     complete_rows = []
     for file_name in top_files:
         for month in all_months:

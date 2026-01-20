@@ -78,7 +78,7 @@ def generate_overview_key_metrics(df, num_months):
     long_format_rows = []
 
     if num_months > 1:
-        # Multi-month analysis - create row for each metric × month
+        # Multi-month analysis - create row for each metric x month
         for month in sorted(df['Month'].unique()):
             month_df = df[df['Month'] == month]
 

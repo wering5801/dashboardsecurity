@@ -163,8 +163,8 @@ def generate_daily_trends(df, num_months):
     daily_counts['_MonthSort'] = daily_counts['Month'].apply(get_month_sort_key)
 
     # IMPORTANT SORTING ORDER for Daily Trends:
-    # 1. Month (chronological: June → July → August)
-    # 2. Detection Count (descending: Highest → Lowest within each month)
+    # 1. Month (chronological: June -> July -> August)
+    # 2. Detection Count (descending: Highest -> Lowest within each month)
     # 3. Date (chronological as tiebreaker)
     daily_counts = daily_counts.sort_values(['_MonthSort', 'Detection Count', '_DateSort'],
                                            ascending=[True, False, True])
@@ -192,7 +192,7 @@ def generate_daily_trends(df, num_months):
     daily_counts = daily_counts[['Date', 'Detection Count', 'Cumulative', 'Month']]
 
     print(f"[Time Analysis] DAILY TRENDS generated: {len(daily_counts)} row(s) - Fields: Date, Detection Count, Cumulative, Month")
-    print(f"[Time Analysis] Sorted by: Month (chronological) → Detection Count (highest first) → Date")
+    print(f"[Time Analysis] Sorted by: Month (chronological) -> Detection Count (highest first) -> Date")
     return daily_counts
 
 
@@ -272,8 +272,8 @@ def generate_hourly_analysis(df, num_months):
     hourly_complete['_MonthSort'] = hourly_complete['Month'].apply(get_month_sort_key)
 
     # IMPORTANT SORTING ORDER for Hourly Analysis:
-    # 1st: Month (chronological: June → July → August)
-    # 2nd: Sort/Hour (chronological: 0:00 → 23:00)
+    # 1st: Month (chronological: June -> July -> August)
+    # 2nd: Sort/Hour (chronological: 0:00 -> 23:00)
     hourly_complete = hourly_complete.sort_values(['_MonthSort', 'Sort'])
 
     # Drop temporary columns
@@ -369,8 +369,8 @@ def generate_day_of_week_analysis(df, num_months):
     dow_complete['_MonthSort'] = dow_complete['Month'].apply(get_month_sort_key)
 
     # IMPORTANT SORTING ORDER for Day of Week Analysis:
-    # 1st: Month (chronological: June → July → August)
-    # 2nd: Day (Monday → Sunday using Sort column)
+    # 1st: Month (chronological: June -> July -> August)
+    # 2nd: Day (Monday -> Sunday using Sort column)
     dow_complete = dow_complete.sort_values(['_MonthSort', 'Sort'])
 
     # Drop temporary sort column
