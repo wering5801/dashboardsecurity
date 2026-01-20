@@ -200,24 +200,25 @@ def falcon_generator_dashboard():
     # TICKET LIFECYCLE DATA UPLOAD (OPTIONAL)
     # ============================================
     st.markdown("---")
-    st.header("🎫 Detection Status by Severity Analysis (Optional)")
+    st.header("🎫 Ticket Lifecycle Analysis (Optional)")
     st.markdown("""
-    **Optional Section:** Upload detection data showing **Status + Severity** for comprehensive analysis.
+    **Optional Section:** Upload detection data for **Ticket Lifecycle Analysis** with Status and Severity tracking.
 
-    This creates a **pivot table** showing: **Total Detections Count by Status and Severity**
+    **This creates:**
+    - **Section A.1**: Pivot table showing Request IDs grouped by Status with Severity counts (Critical, High, Medium, Low)
+    - **Section A.2**: Summary for Detections (alerts triggered, resolved, pending)
 
     You can either:
-    - **Upload a CSV file** with detection data containing these **required columns**:
-      - `Period` (e.g., "October 2025", "November 2025", "December 2025")
-      - `Status` (closed, in_progress, open, pending, on-hold)
-      - `SeverityName` (Critical, High, Medium, Low) - **NEW REQUIRED**
-      - `Request ID` (Detection identifier)
-    - **Use placeholder data** (auto-generates with Status + Severity)
-    - **Skip this section** if you don't need this analysis
+    - **Upload a CSV file** with these **required columns**:
+      - `Period` - Month name (e.g., "November 2025")
+      - `Status` - closed, in_progress, open, pending, on-hold
+      - `SeverityName` - Critical, High, Medium, Low
+      - `Request ID` - Detection identifier
+      - `Count of SeverityName` - (Optional) Count to avoid repeating rows
+    - **Use placeholder data** (auto-generates sample data)
+    - **Skip this section** if you don't need ticket lifecycle analysis
 
-    📄 **Sample CSV Format:** See `sample_ticket_data.csv` for November 2025 example
-
-    **Output:** Pivot table showing Status (rows) x Severity (columns) with detection counts
+    📥 **Download the sample template below to see the exact format**
     """)
 
     use_ticket_data = st.checkbox("Include Ticket Lifecycle Analysis", value=False)
@@ -263,7 +264,7 @@ def falcon_generator_dashboard():
             November 2025,in_progress,Medium,513757,1
             ```
 
-            **Sample Format (without Count - also works):**
+            **Sample Format (without Count - repeat rows):**
             ```
             Period,Status,SeverityName,Request ID
             November 2025,closed,Critical,503528
@@ -272,18 +273,11 @@ def falcon_generator_dashboard():
             November 2025,in_progress,Medium,513757
             ```
 
-            **Old Format (without SeverityName) - Still Works:**
-            ```
-            TicketID,Period,Status,CreatedDate,Category,Priority
-            TKT-00001,October 2025,Open,2025-10-05,Security Incident,High
-            TKT-00002,October 2025,Pending,2025-10-08,Security Incident,High
-            TKT-00003,October 2025,On-hold,2025-10-10,Security Incident,Medium
-            TKT-00004,October 2025,Closed,2025-10-03,Security Incident,Critical
-            TKT-00005,November 2025,Open,2025-11-02,Security Incident,High
-            ```
+            **Output:**
+            - Pivot table grouped by Status, showing Request IDs with severity breakdowns
+            - Summary section showing total alerts, resolved, and pending counts
 
             📄 **Full documentation:** See `TICKET_DATA_FORMAT.md` for complete guide
-            📥 **Sample file:** Download `sample_ticket_data.csv` from the project folder
             """)
 
         ticket_data_option = st.radio(
@@ -528,8 +522,8 @@ def falcon_generator_dashboard():
                 if use_ticket_data:
                     try:
                         if ticket_data_option == "Upload CSV file" and ticket_upload_file:
-                            # Read uploaded ticket data
-                            ticket_df = pd.read_csv(ticket_upload_file)
+                            # Read uploaded ticket data with UTF-8 encoding
+                            ticket_df = pd.read_csv(ticket_upload_file, encoding='utf-8-sig', errors='replace')
                             with status_container:
                                 st.info(f"📊 Processing uploaded ticket data: {len(ticket_df)} records")
                         else:
@@ -563,7 +557,7 @@ def falcon_generator_dashboard():
 
                         for file_data in detection_status_files:
                             if file_data and 'file' in file_data:
-                                df = pd.read_csv(file_data['file'])
+                                df = pd.read_csv(file_data['file'], encoding='utf-8-sig', errors='replace')
                                 detection_status_dfs.append(df)
                                 detection_months.append(file_data['period'])
                                 with status_container:
@@ -634,12 +628,12 @@ def process_with_compositeid_case_detection(host_export_file, file1, file2=None,
     """Process with case-insensitive CompositeID detection"""
     
     try:
-        # Read export files
-        host_export_df = pd.read_csv(host_export_file)
-        df1 = pd.read_csv(file1)  # YOUR primary source
-        df2 = pd.read_csv(file2) if file2 else pd.DataFrame()
-        df3 = pd.read_csv(file3) if file3 else pd.DataFrame()
-        df4 = pd.read_csv(file4) if file4 else pd.DataFrame()
+        # Read export files with UTF-8 encoding and error handling
+        host_export_df = pd.read_csv(host_export_file, encoding='utf-8-sig', errors='replace')
+        df1 = pd.read_csv(file1, encoding='utf-8-sig', errors='replace')  # YOUR primary source
+        df2 = pd.read_csv(file2, encoding='utf-8-sig', errors='replace') if file2 else pd.DataFrame()
+        df3 = pd.read_csv(file3, encoding='utf-8-sig', errors='replace') if file3 else pd.DataFrame()
+        df4 = pd.read_csv(file4, encoding='utf-8-sig', errors='replace') if file4 else pd.DataFrame()
         
         # Track data quality
         data_notes = {
