@@ -16,6 +16,9 @@ This guide explains the CSV format required for the **Ticket Lifecycle Analysis*
 | `Status` | String | Detection status | closed, in_progress, open, pending, on-hold |
 | `SeverityName` | String | **REQUIRED** - Severity level | Critical, High, Medium, Low |
 | `Request ID` | String/Number | Detection identifier | 503457, 503528, 513757 |
+| `Count of SeverityName` | Number | **OPTIONAL** - Count of this severity for this Request ID | 1, 2, 7, etc. |
+
+**Note:** The `Count of SeverityName` column allows you to specify counts instead of repeating rows. For example, instead of listing Request ID 503528 with High severity 7 times, you can have one row with count=7.
 
 ### Status Values
 
@@ -36,12 +39,31 @@ The system accepts the following severity values (case-insensitive):
 
 ## Sample CSV Format
 
+### Option 1: With Count Column (Recommended)
+
+```csv
+Period,Status,SeverityName,Request ID,Count of SeverityName
+November 2025,closed,Critical,503528,1
+November 2025,closed,High,503457,2
+November 2025,closed,High,503479,1
+November 2025,closed,High,503528,7
+November 2025,closed,Medium,503900,3
+November 2025,closed,Low,N/A,2
+November 2025,in_progress,Medium,513757,1
+```
+
+### Option 2: Without Count Column (Repeat Rows)
+
 ```csv
 Period,Status,SeverityName,Request ID
 November 2025,closed,High,503457
 November 2025,closed,High,503457
 November 2025,closed,High,503479
 November 2025,closed,Critical,503528
+November 2025,closed,High,503528
+November 2025,closed,High,503528
+November 2025,closed,High,503528
+November 2025,closed,High,503528
 November 2025,closed,High,503528
 November 2025,closed,High,503528
 November 2025,closed,High,503528
@@ -52,6 +74,8 @@ November 2025,closed,Low,N/A
 November 2025,closed,Low,N/A
 November 2025,in_progress,Medium,513757
 ```
+
+**Both formats produce the same output!** The system automatically handles both.
 
 ## Expected Output
 

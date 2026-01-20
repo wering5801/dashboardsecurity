@@ -98,6 +98,19 @@ def generate_ticket_lifecycle_analysis(ticket_df: pd.DataFrame, num_months: int)
     # Create Month column (same as Period for consistency)
     ticket_df['Month'] = ticket_df['Period']
 
+    # Check if "Count of SeverityName" column exists (new format)
+    has_count_column = 'Count of SeverityName' in ticket_df.columns
+
+    # If count column exists, expand the data to individual rows
+    if has_count_column:
+        # Expand rows based on count
+        expanded_rows = []
+        for _, row in ticket_df.iterrows():
+            count = int(row.get('Count of SeverityName', 1))
+            for _ in range(count):
+                expanded_rows.append(row.to_dict())
+        ticket_df = pd.DataFrame(expanded_rows)
+
     # ============================================
     # Process each month separately
     # ============================================

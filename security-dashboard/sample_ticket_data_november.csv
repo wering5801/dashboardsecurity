@@ -1,18 +1,8 @@
-Period,Status,SeverityName,Request ID
-November 2025,closed,High,503457
-November 2025,closed,High,503457
-November 2025,closed,High,503479
-November 2025,closed,Critical,503528
-November 2025,closed,High,503528
-November 2025,closed,High,503528
-November 2025,closed,High,503528
-November 2025,closed,High,503528
-November 2025,closed,High,503528
-November 2025,closed,High,503528
-November 2025,closed,High,503528
-November 2025,closed,Medium,503900
-November 2025,closed,Medium,503900
-November 2025,closed,Medium,503900
-November 2025,closed,Low,N/A
-November 2025,closed,Low,N/A
-November 2025,in_progress,Medium,513757
+Period,Status,SeverityName,Request ID,Count of SeverityName
+November 2025,closed,Critical,503528,1
+November 2025,closed,High,503457,2
+November 2025,closed,High,503479,1
+November 2025,closed,High,503528,7
+November 2025,closed,Medium,503900,3
+November 2025,closed,Low,N/A,2
+November 2025,in_progress,Medium,513757,1

@@ -251,11 +251,23 @@ def falcon_generator_dashboard():
             - `Status`: closed, in_progress, open, pending, on-hold
             - `SeverityName`: Critical, High, Medium, Low (**REQUIRED**)
             - `Request ID`: Detection identifier (e.g., 503457, 503528)
+            - `Count of SeverityName`: Number of occurrences (**OPTIONAL** - use this to avoid repeating rows)
 
-            **Sample Format:**
+            **Sample Format (with Count - Recommended):**
+            ```
+            Period,Status,SeverityName,Request ID,Count of SeverityName
+            November 2025,closed,Critical,503528,1
+            November 2025,closed,High,503457,2
+            November 2025,closed,High,503528,7
+            November 2025,closed,Medium,503900,3
+            November 2025,in_progress,Medium,513757,1
+            ```
+
+            **Sample Format (without Count - also works):**
             ```
             Period,Status,SeverityName,Request ID
             November 2025,closed,Critical,503528
+            November 2025,closed,High,503457
             November 2025,closed,High,503457
             November 2025,in_progress,Medium,513757
             ```
