@@ -21,6 +21,9 @@ DEFAULT_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "ThisSOCR3port2026")
 # Session timeout (in minutes)
 SESSION_TIMEOUT_MINUTES = 60
 
+# Warning threshold (80% of session timeout)
+SESSION_WARNING_THRESHOLD = SESSION_TIMEOUT_MINUTES * 0.8  # 48 minutes
+
 # ==============================================
 # PASSWORD HASHING
 # ==============================================
@@ -88,29 +91,63 @@ def logout():
 def show_login_page():
     """Display login page with styled interface"""
 
-    # Center the login form
+    # Center the login form with purple-bluish background behind it
     st.markdown("""
         <style>
-        .login-container {
-            max-width: 400px;
-            margin: 100px auto;
-            padding: 30px;
-            background-color: #f8f9fa;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        /* Main page background - clean white */
+        .main {
+            background-color: #ffffff;
         }
+
+        /* Purple-bluish background for the entire block area */
+        .block-container {
+            max-width: 700px !important;
+            padding: 3rem 4rem !important;
+            background: linear-gradient(135deg, #7e57c2 0%, #5c6bc0 50%, #42a5f5 100%) !important;
+            border-radius: 20px !important;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2) !important;
+            margin-top: 5rem !important;
+        }
+
+        /* Make form elements have white background */
+        .stTextInput > div > div > input {
+            background-color: #ffffff !important;
+        }
+
+        /* Form labels - bright white */
+        .stTextInput > label, .stTextInput label {
+            color: #ffffff !important;
+            font-weight: 500 !important;
+        }
+
+        .stButton > button {
+            background-color: #5e35b1 !important;
+            color: white !important;
+        }
+
         .login-header {
             text-align: center;
-            color: #1f77b4;
+            color: #ffffff;
             font-size: 28px;
             font-weight: bold;
             margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
         .login-subheader {
             text-align: center;
-            color: #666;
+            color: #ffffff;
             font-size: 14px;
             margin-bottom: 30px;
+        }
+
+        /* Caption text color - bright white */
+        .stCaptionContainer, .stCaptionContainer p {
+            color: #ffffff !important;
+        }
+
+        /* Make divider white */
+        hr {
+            border-color: rgba(255, 255, 255, 0.3) !important;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -142,8 +179,8 @@ def show_login_page():
 
         # Information footer
         st.markdown("---")
-        st.caption("🔒 Secure access to security analytics and reporting")
-        st.caption("📧 Contact your administrator if you need access")
+        st.markdown('<p style="color: #ffffff; font-size: 12px; margin: 5px 0;">🔒 Secure access to security analytics and reporting</p>', unsafe_allow_html=True)
+        st.markdown('<p style="color: #ffffff; font-size: 12px; margin: 5px 0;">📧 Contact PIC for this dashboard if you need access</p>', unsafe_allow_html=True)
 
 def authenticate_user(username: str, password: str) -> bool:
     """
@@ -171,7 +208,7 @@ def authenticate_user(username: str, password: str) -> bool:
     return False
 
 def show_logout_button():
-    """Display logout button in sidebar"""
+    """Display logout button in sidebar with session expiration warning"""
     with st.sidebar:
         st.markdown("---")
         user = st.session_state.get('username', 'User')
@@ -179,10 +216,17 @@ def show_logout_button():
 
         if login_time:
             session_duration = datetime.now() - login_time
+            session_minutes = int(session_duration.total_seconds() / 60)
             hours, remainder = divmod(int(session_duration.total_seconds()), 3600)
             minutes, _ = divmod(remainder, 60)
+
             st.caption(f"👤 Logged in as: **{user}**")
             st.caption(f"⏱️ Session: {hours}h {minutes}m")
+
+            # Show warning when session is near expiration (80% = 48 minutes)
+            if session_minutes >= SESSION_WARNING_THRESHOLD:
+                time_remaining = SESSION_TIMEOUT_MINUTES - session_minutes
+                st.warning(f"⚠️ Session expires in {time_remaining} minute(s)! You will be automatically logged out.", icon="⏰")
 
         if st.button("🚪 Logout", use_container_width=True):
             logout()

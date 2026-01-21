@@ -158,14 +158,45 @@ def generate_ticket_lifecycle_analysis(ticket_df: pd.DataFrame, num_months: int)
         # ============================================
         # 2. Ticket Summary Metrics (Section A.2)
         # ============================================
-        total_alerts = len(month_df)
-        alerts_resolved = len(month_df[month_df['Status'] == 'closed'])
-        alerts_pending = len(month_df[month_df['Status'].isin(['open', 'pending', 'on-hold', 'in_progress'])])
+        # Calculate totals from pivot table (sum of all severity counts)
+        severity_columns = ['Critical', 'High', 'Medium', 'Low']
+
+        # Total alerts = sum of all severity counts across all rows
+        total_alerts = int(pivot_df[severity_columns].sum().sum())
+
+        # Alerts resolved = sum of all severity counts where Status is 'closed'
+        closed_df = pivot_df[pivot_df['Status'] == 'closed']
+        alerts_resolved = int(closed_df[severity_columns].sum().sum())
+
+        # Alerts pending = sum of all severity counts where Status is in pending states
+        pending_df = pivot_df[pivot_df['Status'].isin(['open', 'pending', 'on-hold', 'in_progress'])]
+        alerts_pending = int(pending_df[severity_columns].sum().sum())
+
+        # Generate pending Request IDs string with actual alert counts
+        if alerts_pending > 0:
+            pending_ids_list = []
+            for _, row in pending_df.iterrows():
+                req_id = row['Request ID']
+                # Sum all severity counts for this Request ID
+                alert_count = int(sum([row.get(sev, 0) for sev in severity_columns]))
+
+                # Format Request ID (remove .0 if numeric)
+                try:
+                    req_id_str = str(int(float(req_id))) if str(req_id).replace('.', '').replace('-', '').isdigit() else str(req_id)
+                except:
+                    req_id_str = str(req_id)
+
+                alert_word = 'alert' if alert_count == 1 else 'alerts'
+                pending_ids_list.append(f"{req_id_str} - {alert_count} {alert_word}")
+            pending_request_ids = ', '.join(pending_ids_list)
+        else:
+            pending_request_ids = ''
 
         summary_data = {
             'total_alerts': total_alerts,
             'alerts_resolved': alerts_resolved,
-            'alerts_pending': alerts_pending
+            'alerts_pending': alerts_pending,
+            'pending_request_ids': pending_request_ids
         }
 
         results[f'ticket_summary_{month_safe}'] = summary_data

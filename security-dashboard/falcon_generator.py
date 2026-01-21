@@ -277,8 +277,6 @@ def falcon_generator_dashboard():
             **Output:**
             - Pivot table grouped by Status, showing Request IDs with severity breakdowns
             - Summary section showing total alerts, resolved, and pending counts
-
-            📄 **Full documentation:** See `TICKET_DATA_FORMAT.md` for complete guide
             """)
 
         ticket_data_option = st.radio(

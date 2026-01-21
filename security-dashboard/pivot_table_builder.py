@@ -67,10 +67,10 @@ def pivot_table_builder_dashboard():
         # Step 2: Select Specific Analysis Output
         st.subheader("📊 Step 2: Select Analysis Output")
 
-        # Get available analysis outputs (excluding 'raw_data', 'raw_data_filtered', summary dicts, and chart_data)
+        # Get available analysis outputs (excluding 'raw_data', 'raw_data_filtered', and chart_data)
+        # Include ticket_summary for A.2 configuration visibility
         available_analyses = [k for k in analysis_results.keys()
                             if k not in ['raw_data', 'raw_data_filtered']
-                            and not k.startswith('ticket_summary_')
                             and not k.startswith('chart_data_')
                             and not k.startswith('raw_data_')]
 
@@ -78,12 +78,21 @@ def pivot_table_builder_dashboard():
         friendly_names = {}
 
         # Dynamically add ticket lifecycle pivot tables with generic month numbers
+        # A.1: Request ID x Severity Pivot Tables (Clustered Bar Charts)
         ticket_keys = [k for k in available_analyses if k.startswith('request_severity_pivot_')]
         if ticket_keys:
             # Sort ticket keys to maintain consistent order
             ticket_keys_sorted = sorted(ticket_keys)
             for idx, key in enumerate(ticket_keys_sorted, 1):
-                friendly_names[key] = f'Ticket Summary - Month {idx}'
+                friendly_names[key] = f'A.1 - Detection Status by Severity (Month {idx})'
+
+        # A.2: Ticket Detection Summary Overview (Card Display)
+        ticket_summary_keys = [k for k in available_analyses if k.startswith('ticket_summary_')]
+        if ticket_summary_keys:
+            # Sort ticket summary keys to maintain consistent order
+            ticket_summary_sorted = sorted(ticket_summary_keys)
+            for idx, key in enumerate(ticket_summary_sorted, 1):
+                friendly_names[key] = f'A.2 - Detection Summary Overview (Month {idx})'
 
         # Add other analysis types
         friendly_names.update({
@@ -124,10 +133,118 @@ def pivot_table_builder_dashboard():
         # Get the selected analysis dataframe
         selected_data = analysis_results[selected_analysis_key]
 
-        # Handle dictionary data (like ticket_summary)
-        if isinstance(selected_data, dict) and not hasattr(selected_data, 'copy'):
-            st.warning(f"⚠️ {selected_analysis_display} contains summary metrics (not tabular data)")
-            st.json(selected_data)
+        # Handle dictionary data (like ticket_summary) - A.2 Detection Summary Overview
+        if not isinstance(selected_data, pd.DataFrame):
+            st.info(f"📊 {selected_analysis_display} - Editable Summary Metrics")
+            st.markdown("### A.2 Configuration - Manual Override")
+            st.markdown("""
+            Edit the summary metrics below. Changes will be reflected in both the **Main Dashboard** and **PDF Export Dashboard**.
+            """)
+
+            # Initialize override key in session state if not exists
+            override_key = f'a2_override_{selected_analysis_key}'
+            if override_key not in st.session_state:
+                st.session_state[override_key] = None
+
+            # Get current values (either from override or original data)
+            if isinstance(selected_data, dict):
+                current_triggered = selected_data.get('total_alerts', 0)
+                current_resolved = selected_data.get('alerts_resolved', 0)
+                current_pending = selected_data.get('alerts_pending', 0)
+                current_pending_ids = selected_data.get('pending_request_ids', '')
+            else:
+                current_triggered = 0
+                current_resolved = 0
+                current_pending = 0
+                current_pending_ids = ''
+
+            # If override exists, use those values instead
+            if st.session_state[override_key] is not None:
+                override_data = st.session_state[override_key]
+                current_triggered = override_data.get('total_alerts', current_triggered)
+                current_resolved = override_data.get('alerts_resolved', current_resolved)
+                current_pending = override_data.get('alerts_pending', current_pending)
+                current_pending_ids = override_data.get('pending_request_ids', current_pending_ids)
+
+            st.markdown("#### Edit Summary Metrics:")
+
+            # Create input fields for editing
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                triggered = st.number_input(
+                    "Alert Detections Triggered",
+                    min_value=0,
+                    value=int(current_triggered),
+                    step=1,
+                    key=f'triggered_{selected_analysis_key}'
+                )
+            with col2:
+                resolved = st.number_input(
+                    "Alert Detections Resolved",
+                    min_value=0,
+                    value=int(current_resolved),
+                    step=1,
+                    key=f'resolved_{selected_analysis_key}'
+                )
+            with col3:
+                pending = st.number_input(
+                    "Alert Detections Pending",
+                    min_value=0,
+                    value=int(current_pending),
+                    step=1,
+                    key=f'pending_{selected_analysis_key}'
+                )
+
+            # Text area for pending Request IDs
+            st.markdown("#### Pending Request IDs:")
+            st.markdown("*Format: Request ID - count (e.g., '513757 - 1 alert' or '520622 - 3 alerts, 521011 - 1 alert')*")
+            pending_ids = st.text_area(
+                "Pending Request IDs",
+                value=str(current_pending_ids),
+                height=100,
+                key=f'pending_ids_{selected_analysis_key}',
+                help="Enter pending Request IDs in format: 'REQID - X alert(s)'. Separate multiple with commas."
+            )
+
+            # Buttons for save/reset
+            col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
+            with col_btn1:
+                if st.button("💾 Save Changes", type="primary", key=f'save_{selected_analysis_key}'):
+                    # Create updated data dictionary
+                    updated_data = {
+                        'total_alerts': triggered,
+                        'alerts_resolved': resolved,
+                        'alerts_pending': pending,
+                        'pending_request_ids': pending_ids
+                    }
+
+                    # Store override in session state
+                    st.session_state[override_key] = updated_data.copy()
+
+                    # Update the original data in the session state results dictionary
+                    st.session_state[selected_results_key][selected_analysis_key] = updated_data.copy()
+
+                    st.success("✅ Changes saved! Values updated in Main Dashboard and PDF Export.")
+                    st.rerun()
+
+            with col_btn2:
+                if st.button("🔄 Reset to Original", key=f'reset_{selected_analysis_key}'):
+                    st.session_state[override_key] = None
+
+                    # Need to regenerate original data - for now just remove the override
+                    # The original data from generator will be used
+                    if override_key in st.session_state:
+                        del st.session_state[override_key]
+
+                    st.success("✅ Reset to original values! Please regenerate data in Falcon Generator if needed.")
+                    st.rerun()
+
+            # Show current status
+            if st.session_state[override_key] is not None:
+                st.info("ℹ️ Custom values are active. Changes will appear in both dashboards.")
+            else:
+                st.info("ℹ️ Using original generated values. Edit and save to override.")
+
             return
 
         df = selected_data.copy()
@@ -173,6 +290,22 @@ def pivot_table_builder_dashboard():
                 'use_ticket_status_colors': False,
                 'use_monthly_colors': False,
                 'barmode': 'group'  # Clustered bars like Excel
+            },
+
+            # A.2: Ticket Detection Summary Overview
+            # Card-based summary display with monthly colors
+            # Shows: triggered alerts, resolved alerts, pending alerts with Request IDs
+            'ticket_summary': {
+                'rows': ['Status'],
+                'columns': [],
+                'values': ['Critical', 'High', 'Medium', 'Low'],
+                'aggregation': 'sum',
+                'chart_type': 'Card Display',
+                'sort_by': 'Status',
+                'use_severity_colors': False,
+                'use_ticket_status_colors': False,
+                'use_monthly_colors': True,  # Apply monthly colors to cards
+                'barmode': 'group'
             },
 
             # Host Analysis
@@ -761,14 +894,6 @@ def pivot_table_builder_dashboard():
 
         st.markdown("---")
 
-        # Export options
-        st.subheader("📥 Export Options")
-        if st.button("📄 Export to PDF", type="primary"):
-            st.session_state['export_pdf'] = True
-
-        if st.button("📊 Download as Excel"):
-            st.session_state['export_excel'] = True
-
     # Main content area
     st.markdown("---")
 
@@ -1123,28 +1248,6 @@ def pivot_table_builder_dashboard():
                 chart = create_pivot_chart(pivot_table, chart_type, chart_height, config, selected_analysis_key)
                 if chart:
                     st.plotly_chart(chart, use_container_width=True)
-
-            # Export to PDF
-            if st.session_state.get('export_pdf', False):
-                pdf_buffer = export_to_pdf(pivot_table, chart, config, data_source)
-                st.download_button(
-                    label="📥 Download PDF Report",
-                    data=pdf_buffer,
-                    file_name=f"pivot_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                    mime="application/pdf"
-                )
-                st.session_state['export_pdf'] = False
-
-            # Export to Excel
-            if st.session_state.get('export_excel', False):
-                excel_buffer = export_to_excel(pivot_table, config, data_source)
-                st.download_button(
-                    label="📥 Download Excel Report",
-                    data=excel_buffer,
-                    file_name=f"pivot_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-                st.session_state['export_excel'] = False
 
             # Show insights
             with st.expander("🔍 Insights & Statistics", expanded=False):

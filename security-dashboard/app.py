@@ -83,6 +83,9 @@ from dashboard_pdf_export import falcon_dashboard_pdf_layout
 # Configure sidebar
 st.sidebar.title("Security Dashboard")
 
+# Copyright at top of sidebar
+st.sidebar.markdown("<div style='text-align:center; color:gray; font-size:11px; padding: 8px 0; border-bottom: 1px solid #ddd; margin-bottom: 15px;'>developed by Izami Ariff © 2025</div>", unsafe_allow_html=True)
+
 # Dashboard selection
 dashboard = st.sidebar.selectbox(
     "Select Dashboard",

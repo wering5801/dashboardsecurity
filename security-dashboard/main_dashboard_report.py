@@ -57,154 +57,177 @@ def main_dashboard_report():
     # ============================
     # CUSTOM CSS FOR ENHANCED UI/UX
     # ============================
-    st.markdown("""
+    # Get layout density from session state (default to Standard)
+    layout_density = st.session_state.get('layout_density', 'Standard')
+
+    # Define spacing based on density
+    if layout_density == 'Compact':
+        container_padding = '1rem'
+        header_padding = '1.5rem'
+        section_padding = '1rem'
+        section_margin = '1rem'
+        card_padding = '1rem'
+    elif layout_density == 'Spacious':
+        container_padding = '3rem'
+        header_padding = '3.5rem'
+        section_padding = '2rem'
+        section_margin = '3rem'
+        card_padding = '2rem'
+    else:  # Standard
+        container_padding = '2rem'
+        header_padding = '2.5rem'
+        section_padding = '1.5rem'
+        section_margin = '2rem'
+        card_padding = '1.5rem'
+
+    st.markdown(f"""
         <style>
         /* Main container */
-        .main .block-container {
-            padding-top: 2rem;
-            padding-bottom: 2rem;
+        .main .block-container {{
+            padding-top: {container_padding};
+            padding-bottom: {container_padding};
             max-width: 95%;
-        }
+        }}
 
         /* Header styling */
-        .dashboard-header {
+        .dashboard-header {{
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 2.5rem;
+            padding: {header_padding};
             border-radius: 15px;
-            margin-bottom: 2rem;
+            margin-bottom: {section_margin};
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
             text-align: center;
-        }
-        .dashboard-header h1 {
+        }}
+        .dashboard-header h1 {{
             color: white;
             margin: 0;
             font-size: 3em;
             font-weight: 800;
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
-        }
-        .dashboard-header p {
+        }}
+        .dashboard-header p {{
             color: #f0f0f0;
             margin: 0.8rem 0 0 0;
             font-size: 1.4em;
             font-weight: 300;
-        }
-        .dashboard-subtitle {
+        }}
+        .dashboard-subtitle {{
             color: #cbd5e0;
             font-size: 0.95em;
             margin-top: 0.5rem;
-        }
+        }}
 
         /* Section container */
-        .section-container {
+        .section-container {{
             background: white;
-            padding: 1.5rem;
+            padding: {section_padding};
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-            margin-bottom: 2rem;
+            margin-bottom: {section_margin};
             border-left: 5px solid #667eea;
-        }
+        }}
 
         /* Section header */
-        .section-header {
+        .section-header {{
             display: flex;
             align-items: center;
             gap: 15px;
-            margin-bottom: 1.5rem;
+            margin-bottom: {section_padding};
             padding-bottom: 1rem;
             border-bottom: 2px solid #e2e8f0;
-        }
-        .section-icon {
+        }}
+        .section-icon {{
             font-size: 2.5em;
             filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.1));
-        }
-        .section-title {
+        }}
+        .section-title {{
             font-size: 2em;
             font-weight: 700;
             color: #2d3748;
             margin: 0;
-        }
+        }}
 
         /* Analysis card */
-        .analysis-card {
+        .analysis-card {{
             background: #f7fafc;
-            padding: 1.5rem;
+            padding: {card_padding};
             border-radius: 10px;
-            margin-bottom: 2rem;
+            margin-bottom: {section_margin};
             border: 1px solid #e2e8f0;
             transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .analysis-card:hover {
+        }}
+        .analysis-card:hover {{
             transform: translateY(-2px);
             box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
-        }
-        .analysis-title {
+        }}
+        .analysis-title {{
             font-size: 1.4em;
             font-weight: 600;
             color: #4a5568;
             margin: 0 0 1rem 0;
             padding-bottom: 0.5rem;
             border-bottom: 2px solid #cbd5e0;
-        }
+        }}
 
         /* Info banner */
-        .info-banner {
+        .info-banner {{
             background: linear-gradient(90deg, #ebf4ff 0%, #ffffff 100%);
             border-left: 4px solid #4299e1;
             padding: 1rem 1.5rem;
             border-radius: 8px;
             margin: 1rem 0;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-        }
+        }}
 
         /* Statistics row */
-        .stats-row {
+        .stats-row {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 1.5rem;
             margin: 1.5rem 0;
-        }
-        .stat-card {
+        }}
+        .stat-card {{
             background: linear-gradient(135deg, #f7fafc 0%, #ffffff 100%);
-            padding: 1.5rem;
+            padding: {card_padding};
             border-radius: 10px;
             border: 1px solid #e2e8f0;
             text-align: center;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-        }
-        .stat-value {
+        }}
+        .stat-value {{
             font-size: 2.5em;
             font-weight: 800;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin: 0.5rem 0;
-        }
-        .stat-label {
+        }}
+        .stat-label {{
             font-size: 0.9em;
             color: #718096;
             text-transform: uppercase;
             letter-spacing: 1px;
             font-weight: 600;
-        }
+        }}
 
         /* Footer */
-        .dashboard-footer {
+        .dashboard-footer {{
             text-align: center;
             color: #a0aec0;
             font-size: 0.9em;
             padding: 2rem 0;
             border-top: 2px solid #e2e8f0;
             margin-top: 3rem;
-        }
+        }}
 
         /* Sidebar styling */
-        .css-1d391kg {
+        .css-1d391kg {{
             background-color: #f7fafc;
-        }
+        }}
 
         /* Hide Streamlit branding */
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
+        #MainMenu {{visibility: hidden;}}
+        footer {{visibility: hidden;}}
         </style>
     """, unsafe_allow_html=True)
 
@@ -215,7 +238,6 @@ def main_dashboard_report():
         <div class="dashboard-header">
             <h1>🛡️ Falcon Security Dashboard</h1>
             <p>Comprehensive Multi-Month Security Analysis Report</p>
-            <div class="dashboard-subtitle">developed by Izami Ariff © 2025</div>
         </div>
     """, unsafe_allow_html=True)
 
@@ -475,8 +497,39 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
+    # Sort months chronologically
+    def month_sort_key(month_str):
+        """Sort months chronologically (January to December)"""
+        try:
+            # Try to parse as "Month Year" format
+            date_obj = datetime.strptime(month_str, '%B %Y')
+            return (date_obj.year, date_obj.month)
+        except:
+            # If parsing fails, return the string as-is for alphabetical sort
+            return (9999, month_str)
+
+    sorted_months = sorted(available_months, key=month_sort_key)
+
+    # Add custom month name inputs to sidebar
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### 📅 Custom Month Names")
+        st.markdown("Customize display names for each month:")
+
+        custom_month_names = {}
+        for idx, month_name in enumerate(sorted_months, 1):
+            month_safe = month_name.replace(' ', '_').replace(',', '')
+            default_name = f"Month {idx}"
+            custom_name = st.text_input(
+                f"{month_name}",
+                value=default_name,
+                key=f"custom_month_name_main_{month_safe}",
+                help=f"Custom display name for {month_name}"
+            )
+            custom_month_names[month_name] = custom_name if custom_name else default_name
+
     # Process each month
-    for idx, month_name in enumerate(sorted(available_months), 1):
+    for idx, month_name in enumerate(sorted_months, 1):
         month_safe = month_name.replace(' ', '_').replace(',', '')
 
         # Get data for this month
@@ -493,14 +546,14 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
         if not isinstance(pivot_df, pd.DataFrame):
             continue
 
-        # Use generic month number for display
-        month_display = f"Month {idx}"
+        # Get custom month display name from sidebar input
+        month_display = custom_month_names[month_name]
 
         # ============================
         # A.1: Request ID Pivot Table
         # ============================
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown(f'<h3 class="analysis-title">{section_letter}.1. Ticket Detections and Status Counts - {month_display}</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.1. Ticket Status Count Across Single Month (Open, In-Progress, Pending, On-hold, Closed) - {month_display}</h3>', unsafe_allow_html=True)
 
         if pivot_df.empty:
             st.warning(f"⚠️ No ticket data available for {month_display}")
@@ -523,6 +576,11 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
 
                     # Display without Status column (already shown as header)
                     display_df = status_df[['Request ID', 'Critical', 'High', 'Medium', 'Low']].copy()
+
+                    # Format Request ID to remove .0 decimal
+                    display_df['Request ID'] = display_df['Request ID'].apply(
+                        lambda x: str(int(float(x))) if pd.notna(x) and str(x).replace('.', '').replace('-', '').isdigit() else str(x)
+                    )
 
                     # Apply styling
                     styled_df = display_df.style.applymap(style_severity_columns, subset=['Critical', 'High', 'Medium', 'Low'])
@@ -604,10 +662,20 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
             alerts_resolved = ticket_summary_config.get('alerts_resolved', alerts_resolved)
             alerts_pending = ticket_summary_config.get('alerts_pending', alerts_pending)
 
-        # Get pending request IDs
-        pending_requests = pivot_df[pivot_df['Status'].isin(['open', 'pending', 'on-hold', 'in_progress'])]['Request ID'].unique()
-        # Format pending request IDs as comma-separated list (e.g., "501111, 501212, 500001")
-        pending_request_str = ', '.join([str(req) for req in pending_requests]) if len(pending_requests) > 0 else "None"
+        # Use pending_request_ids from summary_data (allows manual override from builder)
+        pending_request_str = summary_data.get('pending_request_ids', '')
+        if not pending_request_str:
+            # Fallback: calculate from pivot_df if not in summary_data
+            pending_requests = pivot_df[pivot_df['Status'].isin(['open', 'pending', 'on-hold', 'in_progress'])]['Request ID'].unique()
+            # Format Request IDs without .0 decimal
+            formatted_requests = []
+            for req in pending_requests:
+                try:
+                    req_str = str(int(float(req))) if str(req).replace('.', '').replace('-', '').isdigit() else str(req)
+                except:
+                    req_str = str(req)
+                formatted_requests.append(req_str)
+            pending_request_str = ', '.join(formatted_requests) if len(formatted_requests) > 0 else "None"
 
         # Create simple summary table
         summary_df = pd.DataFrame({

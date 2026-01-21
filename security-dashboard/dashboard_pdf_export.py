@@ -169,6 +169,326 @@ def apply_dashboard_css():
 
 
 # ============================================
+# EXECUTIVE SUMMARY SECTION
+# ============================================
+
+def render_executive_summary(ticket_data, host_data, detection_data, time_data, num_months, section_letter='E'):
+    """
+    Generate Executive Summary Report with professional cybersecurity insights
+    Written from perspective of experienced cybersecurity analyst
+
+    Fixed: TypeError with peak_hour string comparison - now converts to int
+
+    Args:
+        ticket_data: Ticket lifecycle analysis results
+        host_data: Host security analysis results
+        detection_data: Detection and severity analysis results
+        time_data: Time-based analysis results
+        num_months: Number of months analyzed (1-3)
+        section_letter: Section letter designation (default 'E')
+    """
+    st.markdown(f'<div class="section-header">{section_letter}. Executive Summary Report</div>', unsafe_allow_html=True)
+    st.markdown('<div class="analysis-section">', unsafe_allow_html=True)
+
+    # Determine time period text
+    if num_months == 1:
+        period_text = "single-month period"
+        comparison_context = "month-over-month historical trends"
+    elif num_months == 2:
+        period_text = "two-month period"
+        comparison_context = "month-to-month progression"
+    else:
+        period_text = "three-month quarterly period"
+        comparison_context = "quarterly trend analysis"
+
+    # ============================================
+    # OVERVIEW INTRODUCTION
+    # ============================================
+    overview_html = f"""
+    <div style="background-color: #f8f9fa; border-left: 4px solid #1f4e5f; padding: 15px; margin-bottom: 15px; border-radius: 5px;">
+        <div style="font-size: 12px; font-weight: bold; color: #1f4e5f; margin-bottom: 8px;">📊 EXECUTIVE OVERVIEW</div>
+        <div style="font-size: 11px; color: #333; line-height: 1.6;">
+            This executive summary provides strategic cybersecurity insights based on comprehensive analysis across the {period_text}.
+            As security operations professionals, our assessment focuses on threat patterns, response effectiveness, and actionable
+            recommendations to strengthen the organization's security posture.
+        </div>
+    </div>
+    """
+    st.markdown(overview_html, unsafe_allow_html=True)
+
+    # ============================================
+    # KEY FINDINGS SECTION
+    # ============================================
+    st.markdown('<div style="font-size: 12px; font-weight: bold; color: #1f4e5f; margin: 15px 0 10px 0;">🎯 KEY FINDINGS</div>', unsafe_allow_html=True)
+
+    findings = []
+
+    # TICKET LIFECYCLE INSIGHTS
+    if ticket_data:
+        # Get summary data from most recent month
+        summary_keys = sorted([k for k in ticket_data.keys() if k.startswith('ticket_summary_')])
+        if summary_keys:
+            latest_summary = ticket_data[summary_keys[-1]]
+            total_alerts = latest_summary.get('total_alerts', 0)
+            resolved = latest_summary.get('alerts_resolved', 0)
+            pending = latest_summary.get('alerts_pending', 0)
+
+            if total_alerts > 0:
+                resolution_rate = (resolved / total_alerts) * 100
+
+                # Assess resolution performance
+                if resolution_rate >= 90:
+                    status_assessment = "exceptional"
+                    status_color = "#28a745"
+                elif resolution_rate >= 75:
+                    status_assessment = "strong"
+                    status_color = "#70AD47"
+                elif resolution_rate >= 60:
+                    status_assessment = "moderate"
+                    status_color = "#FFC000"
+                else:
+                    status_assessment = "concerning"
+                    status_color = "#DC143C"
+
+                findings.append(f"""
+                    <div style="margin-bottom: 10px; padding: 10px; background: white; border-left: 3px solid {status_color}; border-radius: 4px;">
+                        <strong style="color: {status_color};">Alert Response Performance:</strong>
+                        <span style="font-size: 11px;">
+                        Incident response team achieved {resolution_rate:.1f}% resolution rate ({resolved} of {total_alerts} alerts resolved),
+                        indicating {status_assessment} operational efficiency.
+                        {f'{pending} alerts remain pending investigation and remediation.' if pending > 0 else 'All alerts have been addressed.'}
+                        </span>
+                    </div>
+                """)
+
+                # Analyze by severity if pivot data available
+                pivot_keys = [k for k in ticket_data.keys() if k.startswith('request_severity_pivot_')]
+                if pivot_keys:
+                    latest_pivot = ticket_data[pivot_keys[-1]]
+                    if not latest_pivot.empty:
+                        # Count critical and high severity alerts
+                        critical_count = latest_pivot['Critical'].sum()
+                        high_count = latest_pivot['High'].sum()
+
+                        if critical_count > 0 or high_count > 0:
+                            priority_total = critical_count + high_count
+                            findings.append(f"""
+                                <div style="margin-bottom: 10px; padding: 10px; background: white; border-left: 3px solid #DC143C; border-radius: 4px;">
+                                    <strong style="color: #DC143C;">High-Priority Threats:</strong>
+                                    <span style="font-size: 11px;">
+                                    {priority_total} high-priority alerts detected ({critical_count} Critical, {high_count} High severity).
+                                    These require immediate security team attention and executive awareness due to potential business impact.
+                                    </span>
+                                </div>
+                            """)
+
+    # HOST SECURITY INSIGHTS
+    if host_data:
+        # Analyze host detection patterns
+        if 'host_detection_summary' in host_data:
+            host_summary = host_data['host_detection_summary']
+            if not host_summary.empty and 'DetectionCount' in host_summary.columns:
+                total_hosts = len(host_summary)
+                total_detections = host_summary['DetectionCount'].sum()
+                avg_per_host = total_detections / total_hosts if total_hosts > 0 else 0
+
+                # Identify high-risk hosts
+                high_threshold = avg_per_host * 2  # Hosts with 2x average detections
+                high_risk_hosts = len(host_summary[host_summary['DetectionCount'] >= high_threshold])
+
+                if high_risk_hosts > 0:
+                    risk_percentage = (high_risk_hosts / total_hosts) * 100
+                    findings.append(f"""
+                        <div style="margin-bottom: 10px; padding: 10px; background: white; border-left: 3px solid #FF8C00; border-radius: 4px;">
+                            <strong style="color: #FF8C00;">Host Risk Profile:</strong>
+                            <span style="font-size: 11px;">
+                            {high_risk_hosts} endpoints ({risk_percentage:.1f}% of monitored hosts) exhibit elevated threat activity
+                            with detection rates exceeding normal baseline. Recommend immediate isolation review and forensic analysis.
+                            </span>
+                        </div>
+                    """)
+
+    # DETECTION & SEVERITY INSIGHTS
+    if detection_data:
+        # Analyze detection trends
+        if 'severity_trend' in detection_data:
+            severity_df = detection_data['severity_trend']
+            if not severity_df.empty and 'SeverityName' in severity_df.columns and 'Count' in severity_df.columns:
+                total_detections = severity_df['Count'].sum()
+
+                # Calculate severity distribution
+                severity_dist = severity_df.groupby('SeverityName')['Count'].sum()
+
+                if 'Critical' in severity_dist.index or 'High' in severity_dist.index:
+                    critical = severity_dist.get('Critical', 0)
+                    high = severity_dist.get('High', 0)
+                    high_priority_pct = ((critical + high) / total_detections) * 100 if total_detections > 0 else 0
+
+                    findings.append(f"""
+                        <div style="margin-bottom: 10px; padding: 10px; background: white; border-left: 3px solid #5B9BD5; border-radius: 4px;">
+                            <strong style="color: #5B9BD5;">Threat Severity Distribution:</strong>
+                            <span style="font-size: 11px;">
+                            {total_detections} total detections recorded across the analysis period.
+                            High-priority threats (Critical/High) represent {high_priority_pct:.1f}% of all detections,
+                            requiring prioritized security response and resource allocation.
+                            </span>
+                        </div>
+                    """)
+
+        # Analyze attack patterns (tactics/techniques)
+        if 'tactics_by_severity' in detection_data:
+            tactics_df = detection_data['tactics_by_severity']
+            if not tactics_df.empty and 'Tactic' in tactics_df.columns:
+                top_tactics = tactics_df.groupby('Tactic')['Count'].sum().nlargest(3)
+                if len(top_tactics) > 0:
+                    top_tactic_name = top_tactics.index[0]
+                    top_tactic_count = top_tactics.iloc[0]
+
+                    findings.append(f"""
+                        <div style="margin-bottom: 10px; padding: 10px; background: white; border-left: 3px solid #70AD47; border-radius: 4px;">
+                            <strong style="color: #70AD47;">Attack Pattern Analysis:</strong>
+                            <span style="font-size: 11px;">
+                            Primary adversary tactic observed: <strong>{top_tactic_name}</strong> ({top_tactic_count} incidents).
+                            This MITRE ATT&CK pattern indicates targeted threat actor methodology requiring defensive posture adjustment.
+                            </span>
+                        </div>
+                    """)
+
+    # TIME-BASED INSIGHTS
+    if time_data:
+        if 'hourly_analysis' in time_data:
+            hourly_df = time_data['hourly_analysis']
+            if not hourly_df.empty and 'Hour' in hourly_df.columns and 'Detection Count' in hourly_df.columns:
+                hourly_totals = hourly_df.groupby('Hour')['Detection Count'].sum()
+                if len(hourly_totals) > 0:
+                    peak_hour = hourly_totals.idxmax()
+                    peak_count = hourly_totals.max()
+
+                    # Convert peak_hour to integer for comparison
+                    try:
+                        peak_hour_int = int(peak_hour)
+                    except (ValueError, TypeError):
+                        peak_hour_int = 0
+
+                    # Determine if peak is during business hours (8-17) or off-hours
+                    if 8 <= peak_hour_int <= 17:
+                        time_context = "business hours"
+                        risk_note = "consistent with normal user activity patterns"
+                    else:
+                        time_context = "off-business hours"
+                        risk_note = "potentially indicating automated or malicious activity requiring investigation"
+
+                    findings.append(f"""
+                        <div style="margin-bottom: 10px; padding: 10px; background: white; border-left: 3px solid #9966CC; border-radius: 4px;">
+                            <strong style="color: #9966CC;">Temporal Threat Patterns:</strong>
+                            <span style="font-size: 11px;">
+                            Peak detection activity occurs at {peak_hour_int:02d}:00 hours ({time_context}) with {int(peak_count)} alerts,
+                            {risk_note}.
+                            </span>
+                        </div>
+                    """)
+
+    # Render findings
+    if findings:
+        for finding in findings:
+            st.markdown(finding, unsafe_allow_html=True)
+    else:
+        st.markdown('<div style="font-size: 11px; color: #666; font-style: italic;">No significant findings identified in current analysis period.</div>', unsafe_allow_html=True)
+
+    # ============================================
+    # STRATEGIC RECOMMENDATIONS
+    # ============================================
+    st.markdown('<div style="font-size: 12px; font-weight: bold; color: #1f4e5f; margin: 20px 0 10px 0;">✅ RECOMMENDED ACTIONS</div>', unsafe_allow_html=True)
+
+    recommendations = []
+
+    # Generate targeted recommendations based on findings
+    if ticket_data and summary_keys:
+        latest_summary = ticket_data[summary_keys[-1]]
+        pending = latest_summary.get('alerts_pending', 0)
+
+        if pending > 0:
+            recommendations.append({
+                'priority': 'HIGH',
+                'action': 'Accelerate Alert Resolution',
+                'detail': f'Prioritize closure of {pending} pending alerts through enhanced triage procedures and resource allocation to incident response team.',
+                'color': '#DC143C'
+            })
+
+        # Check for critical severity in pending
+        pivot_keys = [k for k in ticket_data.keys() if k.startswith('request_severity_pivot_')]
+        if pivot_keys:
+            latest_pivot = ticket_data[pivot_keys[-1]]
+            pending_pivot = latest_pivot[latest_pivot['Status'].isin(['open', 'pending', 'on-hold', 'in_progress'])]
+            if not pending_pivot.empty:
+                pending_critical = pending_pivot['Critical'].sum()
+                if pending_critical > 0:
+                    recommendations.append({
+                        'priority': 'CRITICAL',
+                        'action': 'Critical Alert Escalation',
+                        'detail': f'{pending_critical} Critical severity alerts require immediate executive attention and emergency response protocol activation.',
+                        'color': '#8B0000'
+                    })
+
+    if host_data and 'host_detection_summary' in host_data:
+        host_summary = host_data['host_detection_summary']
+        if not host_summary.empty and len(host_summary) > 0:
+            recommendations.append({
+                'priority': 'MEDIUM',
+                'action': 'Endpoint Security Hardening',
+                'detail': 'Implement enhanced endpoint protection controls on high-detection hosts, including application whitelisting and behavioral monitoring.',
+                'color': '#FF8C00'
+            })
+
+    if detection_data and 'tactics_by_severity' in detection_data:
+        recommendations.append({
+            'priority': 'MEDIUM',
+            'action': 'Threat Hunting Initiative',
+            'detail': 'Launch proactive threat hunting campaigns targeting identified MITRE ATT&CK tactics to detect latent threats and advanced persistent threats (APTs).',
+            'color': '#5B9BD5'
+        })
+
+    recommendations.append({
+        'priority': 'ONGOING',
+        'action': 'Security Metrics Review',
+        'detail': f'Continue {comparison_context} monitoring and establish key performance indicators (KPIs) for security operations effectiveness measurement.',
+        'color': '#70AD47'
+    })
+
+    # Render recommendations
+    for rec in recommendations:
+        rec_html = f"""
+        <div style="margin-bottom: 8px; padding: 10px; background: white; border-left: 3px solid {rec['color']}; border-radius: 4px; display: flex; align-items: start;">
+            <div style="background: {rec['color']}; color: white; font-size: 9px; font-weight: bold; padding: 3px 8px; border-radius: 3px; margin-right: 10px; white-space: nowrap;">
+                {rec['priority']}
+            </div>
+            <div style="flex: 1;">
+                <div style="font-weight: bold; font-size: 11px; color: #333; margin-bottom: 3px;">{rec['action']}</div>
+                <div style="font-size: 10px; color: #555; line-height: 1.5;">{rec['detail']}</div>
+            </div>
+        </div>
+        """
+        st.markdown(rec_html, unsafe_allow_html=True)
+
+    # ============================================
+    # CONCLUSION STATEMENT
+    # ============================================
+    conclusion_html = f"""
+    <div style="background-color: #e8f4f8; border: 1px solid #1f4e5f; padding: 12px; margin-top: 15px; border-radius: 5px;">
+        <div style="font-size: 11px; color: #1f4e5f; line-height: 1.6; text-align: justify;">
+            <strong>Professional Assessment:</strong> The security operations team demonstrates operational capability in threat detection
+            and response across the {period_text}. Continued focus on high-priority alert remediation, endpoint hardening, and proactive
+            threat hunting will strengthen the organization's defensive posture against evolving cyber threats. Regular executive review
+            of these metrics ensures alignment between security operations and business risk management objectives.
+        </div>
+    </div>
+    """
+    st.markdown(conclusion_html, unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)  # Close section
+
+
+# ============================================
 # MAIN DASHBOARD FUNCTION
 # ============================================
 
@@ -190,13 +510,22 @@ def falcon_dashboard_pdf_layout():
         # Get current month for default
         current_month = datetime.now().strftime("%B %Y")
 
-        # Editable title
-        default_title = f"SafeGuards Secure Solutions - CrowdStrike Falcon Monthly Report ({current_month})"
+        # Editable title with placeholder format
+        default_title = f"XXX COMPANY - CrowdStrike Falcon Monthly Report ({current_month})"
+
+        st.markdown("### 📝 Report Title Configuration")
+        st.markdown("**Important:** Please update the company name and verify the month/year before generating the report.")
+
         dashboard_title = st.text_input(
             "Dashboard Title",
             value=default_title,
-            help="Edit the main dashboard title"
+            help="Replace 'XXX COMPANY' with your actual company name. Format: [Company Name] - CrowdStrike Falcon Monthly Report (Month Year)",
+            placeholder="e.g., Acme Corporation - CrowdStrike Falcon Monthly Report (January 2026)"
         )
+
+        # Validation warning
+        if "XXX COMPANY" in dashboard_title:
+            st.warning("⚠️ Please replace 'XXX COMPANY' with your actual company name before generating the PDF report.")
 
         # Confirmation button
         if st.button("✓ Confirm Title", type="secondary", use_container_width=True):
@@ -248,10 +577,11 @@ def falcon_dashboard_pdf_layout():
         st.markdown("### 📊 Report Sections")
         st.markdown("Select sections to include in the report:")
 
-        include_ticket_lifecycle = st.checkbox("Ticket Lifecycle Analysis", value=bool(ticket_data), help="Include ticket status trend analysis", disabled=not ticket_data)
+        include_ticket_lifecycle = st.checkbox("Ticket Lifecycle Analysis", value=False, help="Include ticket status trend analysis", disabled=not ticket_data)
         include_host_analysis = st.checkbox("Host Security Analysis", value=True, help="Include host security metrics")
         include_detection_analysis = st.checkbox("Detection and Severity Analysis", value=True, help="Include detection and severity trends")
         include_time_analysis = st.checkbox("Time-Based Analysis", value=True, help="Include time-based detection patterns")
+        include_executive_summary = st.checkbox("Executive Summary Report", value=True, help="Include professional executive summary with key findings and recommendations")
 
         if not ticket_data:
             st.caption("💡 Ticket Lifecycle Analysis is disabled (no ticket data available)")
@@ -262,7 +592,7 @@ def falcon_dashboard_pdf_layout():
     # Calculate section letters dynamically based on what's included
     section_letters = {}
     current_letter_index = 0
-    letters = ['A', 'B', 'C', 'D', 'E']
+    letters = ['A', 'B', 'C', 'D', 'E', 'F']
 
     if include_ticket_lifecycle and ticket_data:
         section_letters['ticket'] = letters[current_letter_index]
@@ -280,6 +610,10 @@ def falcon_dashboard_pdf_layout():
         section_letters['time'] = letters[current_letter_index]
         current_letter_index += 1
 
+    if include_executive_summary:
+        section_letters['executive'] = letters[current_letter_index]
+        current_letter_index += 1
+
     # ============================================
     # TICKET LIFECYCLE ANALYSIS SECTION (DYNAMIC)
     # ============================================
@@ -292,77 +626,256 @@ def falcon_dashboard_pdf_layout():
 
         # Get available months from ticket data
         available_months = []
+        month_data_map = {}
+
         for key in ticket_data.keys():
             if key.startswith('request_severity_pivot_'):
                 month_name = key.replace('request_severity_pivot_', '').replace('_', ' ')
                 available_months.append(month_name)
+                month_data_map[month_name] = key
 
         if not available_months:
             st.warning("No ticket pivot data available")
         else:
-            # Process each month
-            for idx, month_name in enumerate(sorted(available_months), 1):
-                month_safe = month_name.replace(' ', '_').replace(',', '')
+            # Sort months chronologically
+            def month_sort_key(month_str):
+                """Sort months chronologically (January to December)"""
+                try:
+                    # Try to parse as "Month Year" format
+                    date_obj = datetime.strptime(month_str, '%B %Y')
+                    return (date_obj.year, date_obj.month)
+                except:
+                    # If parsing fails, return the string as-is for alphabetical sort
+                    return (9999, month_str)
 
-                # Get data for this month
-                pivot_key = f'request_severity_pivot_{month_safe}'
+            sorted_months = sorted(available_months, key=month_sort_key)
+            num_months = len(sorted_months)
 
-                if pivot_key not in ticket_data:
-                    continue
+            # Use actual month names from Falcon Generator (no custom naming needed)
+            # Month names are already configured in Falcon Generator with month/year dropdowns
+            custom_month_names = {month_name: month_name for month_name in sorted_months}
 
+            # ============================
+            # A.1: Combined Chart for All Months
+            # ============================
+            # Determine trend text
+            if num_months == 1:
+                trend_text = "Single Month"
+            elif num_months == 2:
+                trend_text = "Two Month Trends"
+            elif num_months == 3:
+                trend_text = "Three Month Trends"
+            else:
+                trend_text = f"{num_months} Month Trends"
+
+            st.markdown(f'<div class="chart-title">{section_letter}.1. Ticket Status Count Across {trend_text} (Open, In-Progress, Pending, On-hold, Closed)</div>', unsafe_allow_html=True)
+
+            # Create detailed breakdown charts side-by-side (like Main Dashboard Report)
+            # Each month gets its own chart showing status breakdown
+            if num_months == 1:
+                chart_cols = [st.container()]
+            else:
+                chart_cols = st.columns(num_months)
+
+            severity_colors = {
+                'Critical': '#DC143C',
+                'High': '#FF8C00',
+                'Medium': '#4169E1',
+                'Low': '#70AD47'
+            }
+
+            all_statuses = ['closed', 'in_progress', 'open', 'pending', 'on-hold']
+
+            for idx, month_name in enumerate(sorted_months):
+                pivot_key = month_data_map[month_name]
                 pivot_df = ticket_data[pivot_key]
 
-                # Validate DataFrame
                 if not isinstance(pivot_df, pd.DataFrame) or pivot_df.empty:
                     continue
 
-                month_display = f"Month {idx}"
+                # Get display name for this month
+                month_display = custom_month_names[month_name]
 
-                # Ticket Status Count - Clustered Bar Chart
-                st.markdown(f'<div class="chart-title">{section_letter}.1. Ticket Status Count Across Single Month (Open, Pending, On-hold, Closed) - {month_display}</div>', unsafe_allow_html=True)
+                # Aggregate by Status for this month
+                month_agg = pivot_df.groupby('Status')[['Critical', 'High', 'Medium', 'Low']].sum().reset_index()
 
-                # Aggregate by Status
-                chart_df = pivot_df.groupby('Status')[['Critical', 'High', 'Medium', 'Low']].sum().reset_index()
-
-                # Create clustered bar chart
+                # Create figure for this month
                 fig = go.Figure()
 
-                severity_colors = {
-                    'Critical': '#DC143C',
-                    'High': '#FF8C00',
-                    'Medium': '#4169E1',
-                    'Low': '#70AD47'
-                }
-
+                # Add bars for each severity
                 for severity in ['Critical', 'High', 'Medium', 'Low']:
-                    if severity in chart_df.columns:
+                    if severity in month_agg.columns:
                         fig.add_trace(go.Bar(
                             name=severity,
-                            x=chart_df['Status'],
-                            y=chart_df[severity],
+                            x=month_agg['Status'],
+                            y=month_agg[severity],
                             marker_color=severity_colors[severity],
-                            text=chart_df[severity],
-                            textposition='outside'
+                            text=month_agg[severity],
+                            textposition='outside',
+                            hovertemplate=f'<b>{severity}</b><br>Status: %{{x}}<br>Count: %{{y}}<extra></extra>'
                         ))
+
+                # Only show legend on the last (rightmost) chart
+                show_legend = (idx == len(sorted_months) - 1)
 
                 fig.update_layout(
                     barmode='group',
-                    xaxis_title="Detection Request Status",
-                    yaxis_title="Number of Detections",
-                    height=240,
-                    showlegend=True,
-                    legend=dict(
-                        title="Severity",
-                        orientation="h",
-                        yanchor="bottom",
-                        y=1.02,
-                        xanchor="right",
-                        x=1
+                    xaxis_title=dict(
+                        text=month_display,
+                        font=dict(size=12, color='#666666')
                     ),
-                    margin=dict(l=40, r=40, t=40, b=40)
+                    yaxis_title=dict(
+                        text="Number of Detections",
+                        font=dict(size=10, color='#666666')
+                    ),
+                    yaxis=dict(
+                        tickfont=dict(size=9, color='#666666')
+                    ),
+                    height=240,
+                    showlegend=show_legend,
+                    legend=dict(
+                        title=dict(text="Severity", font=dict(size=11)),
+                        orientation="v",
+                        yanchor="middle",
+                        y=0.5,
+                        xanchor="left",
+                        x=1.02,
+                        font=dict(size=10)
+                    ),
+                    margin=dict(l=40, r=40, t=30, b=50),  # Increased top and bottom margins for text labels
+                    uniformtext_minsize=8,
+                    uniformtext_mode='hide'
                 )
 
-                st.plotly_chart(fig, use_container_width=True)
+                # Update text position to prevent clipping at top
+                fig.update_traces(
+                    textposition='outside',
+                    cliponaxis=False
+                )
+
+                # Display in appropriate column
+                if num_months == 1:
+                    with chart_cols[0]:
+                        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                else:
+                    with chart_cols[idx]:
+                        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+            # ============================
+            # A.2: Ticket Detection Summary Overview (Per Month) - Horizontal Category Layout
+            # ============================
+            st.markdown(f'<div class="chart-title">{section_letter}.2. Ticket Detection Summary Overview</div>', unsafe_allow_html=True)
+
+            # Collect data for all months first
+            month_data_list = []
+            for idx, month_name in enumerate(sorted_months):
+                month_safe = month_name.replace(' ', '_').replace(',', '')
+                month_display = custom_month_names[month_name]
+                pivot_key = month_data_map[month_name]
+                pivot_df = ticket_data[pivot_key]
+
+                if not isinstance(pivot_df, pd.DataFrame) or pivot_df.empty:
+                    continue
+
+                # Get summary data for this month
+                summary_key = f'ticket_summary_{month_safe}'
+                summary_data = ticket_data.get(summary_key, {})
+
+                # Default values
+                total_alerts = summary_data.get('total_alerts', 0)
+                alerts_resolved = summary_data.get('alerts_resolved', 0)
+                alerts_pending = summary_data.get('alerts_pending', 0)
+
+                # Use pending_request_ids from summary_data (allows manual override from builder)
+                pending_request_str = summary_data.get('pending_request_ids', '')
+                if not pending_request_str:
+                    pending_request_str = "None"
+
+                # Determine monthly color based on index (1st=Green, 2nd=Blue, 3rd=Gold)
+                if idx == 0:
+                    month_color = MONTHLY_COLORS['month_1']  # Green
+                elif idx == 1:
+                    month_color = MONTHLY_COLORS['month_2']  # Blue
+                else:
+                    month_color = MONTHLY_COLORS['month_3']  # Gold
+
+                month_data_list.append({
+                    'month_display': month_display,
+                    'month_color': month_color,
+                    'total_alerts': total_alerts,
+                    'alerts_resolved': alerts_resolved,
+                    'alerts_pending': alerts_pending,
+                    'pending_request_str': pending_request_str
+                })
+
+            # Compact table-style layout - all data in organized rows
+            st.markdown("<div style='margin-bottom: 15px;'></div>", unsafe_allow_html=True)
+
+            # Build HTML table structure with card-style rows and spacing
+            table_html = '<div style="display: flex; flex-direction: column; gap: 8px; margin: 10px 0;">'
+
+            # Header row with month names
+            table_html += '<div style="display: flex; gap: 8px;">'
+            table_html += '<div style="flex: 0 0 220px; padding: 12px; font-weight: bold; color: #333; font-size: 13px; background: #f8f9fa; border-radius: 8px; display: flex; align-items: center;">Metric</div>'
+            for month_info in month_data_list:
+                table_html += f'<div style="flex: 1; padding: 12px; text-align: center; font-weight: bold; background: {month_info["month_color"]}; color: black; font-size: 12px; border-radius: 8px;">{month_info["month_display"]}</div>'
+            table_html += '</div>'
+
+            # Row 1: Triggered Alerts
+            table_html += '<div style="display: flex; gap: 8px;">'
+            table_html += '<div style="flex: 0 0 220px; padding: 14px 12px; font-size: 12px; color: #555; font-weight: 600; background: #f8f9fa; border-radius: 8px; display: flex; align-items: center;">Alert Detections Triggered</div>'
+            for month_info in month_data_list:
+                table_html += f'<div style="flex: 1; padding: 14px 12px; text-align: center; background: {month_info["month_color"]}; color: black; border-radius: 8px; display: flex; align-items: center; justify-content: center;"><span style="font-size: 28px; font-weight: bold;">{month_info["total_alerts"]}</span></div>'
+            table_html += '</div>'
+
+            # Row 2: Resolved Alerts
+            table_html += '<div style="display: flex; gap: 8px;">'
+            table_html += '<div style="flex: 0 0 220px; padding: 14px 12px; font-size: 12px; color: #555; font-weight: 600; background: #f8f9fa; border-radius: 8px; display: flex; align-items: center;">Alert Detections Resolved</div>'
+            for month_info in month_data_list:
+                table_html += f'<div style="flex: 1; padding: 14px 12px; text-align: center; background: {month_info["month_color"]}; color: black; border-radius: 8px; display: flex; align-items: center; justify-content: center;"><span style="font-size: 28px; font-weight: bold;">{month_info["alerts_resolved"]}</span></div>'
+            table_html += '</div>'
+
+            # Row 3: Pending Alerts
+            table_html += '<div style="display: flex; gap: 8px;">'
+            table_html += '<div style="flex: 0 0 220px; padding: 14px 12px; font-size: 12px; color: #555; font-weight: 600; background: #f8f9fa; border-radius: 8px; display: flex; align-items: center;">Alert Detections Pending</div>'
+            for month_info in month_data_list:
+                table_html += f'<div style="flex: 1; padding: 14px 12px; text-align: center; background: {month_info["month_color"]}; color: black; border-radius: 8px; display: flex; align-items: center; justify-content: center;"><span style="font-size: 28px; font-weight: bold;">{month_info["alerts_pending"]}</span></div>'
+            table_html += '</div>'
+
+            table_html += '</div>'
+
+            st.markdown(table_html, unsafe_allow_html=True)
+
+            # Pending Request IDs section below table - compact display
+            st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+            pending_cols = st.columns(num_months)
+            for idx, month_info in enumerate(month_data_list):
+                with pending_cols[idx]:
+                    # Show all pending Request IDs with alert counts (no limit)
+                    if month_info['pending_request_str'] != "None":
+                        st.markdown(f"""
+                            <div style='background: #f8f9fa;
+                                        padding: 12px;
+                                        border-radius: 8px;
+                                        border-left: 4px solid {month_info['month_color']};
+                                        font-size: 11px;
+                                        max-height: 150px;
+                                        overflow-y: auto;'>
+                                <strong style='color: #333; font-size: 12px;'>Pending Request IDs:</strong><br>
+                                <span style='color: #666;'>{month_info['pending_request_str']}</span>
+                            </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                            <div style='background: #f8f9fa;
+                                        padding: 12px;
+                                        border-radius: 8px;
+                                        border-left: 4px solid {month_info['month_color']};
+                                        font-size: 11px;
+                                        text-align: center;'>
+                                <span style='color: #999; font-style: italic;'>No pending alerts</span>
+                            </div>
+                        """, unsafe_allow_html=True)
 
         st.markdown('</div>', unsafe_allow_html=True)  # Close Section A
 
@@ -488,19 +1001,9 @@ def falcon_dashboard_pdf_layout():
             with col_critical:
                 st.markdown('<div style="font-size: 10px; font-weight: bold; margin-bottom: 5px; color: #333; text-align: center;">Critical Detections</div>', unsafe_allow_html=True)
 
-                # Monthly color mapping (consistent with chart colors from pivot_table_builder)
-                monthly_colors = {
-                    'July 2025': '#70AD47',      # Green (month_1)
-                    'August 2025': '#5B9BD5',    # Blue (month_2)
-                    'September 2025': '#FFC000', # Gold (month_3)
-                    'Jul 2025': '#70AD47',
-                    'Aug 2025': '#5B9BD5',
-                    'Sep 2025': '#FFC000'
-                }
-
-                # Build list of box data
+                # Build list of box data with index-based monthly colors (like A.2)
                 box_data = []
-                for month in months:
+                for idx, month in enumerate(months):
                     # Filter data for Critical Detections in this month
                     critical_data = detection_data['critical_high_overview'][
                         (detection_data['critical_high_overview']['KEY METRICS'] == 'Critical Detections') &
@@ -513,14 +1016,20 @@ def falcon_dashboard_pdf_layout():
                     else:
                         count_value = 0
 
-                    # Get month color
-                    month_color = monthly_colors.get(str(month), '#7cb342')  # Default to green
+                    # Get month color based on index (1st=Green, 2nd=Blue, 3rd=Gold)
+                    if idx == 0:
+                        month_color = MONTHLY_COLORS['month_1']  # Green
+                    elif idx == 1:
+                        month_color = MONTHLY_COLORS['month_2']  # Blue
+                    else:
+                        month_color = MONTHLY_COLORS['month_3']  # Gold
+
                     box_data.append((month, count_value, month_color))
 
-                # Create horizontal container for 3 boxes - compact fonts with monthly colors and black text
-                boxes_html = '<div style="display: flex; gap: 5px; justify-content: center;">'
+                # Create horizontal container for boxes with monthly colors and larger font (36px like A.2)
+                boxes_html = '<div style="display: flex; gap: 8px; justify-content: center;">'
                 for month, count_value, month_color in box_data:
-                    boxes_html += f'<div style="background-color: {month_color}; border-radius: 5px; padding: 8px; text-align: center; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); border: 1px solid #d0d0d0; flex: 1; min-width: 60px; display: flex; flex-direction: column; justify-content: center;"><div style="font-size: 8px; color: #000000; font-weight: 600; margin-bottom: 3px;">{month}</div><div style="font-size: 24px; color: #000000; font-weight: bold; margin: 3px 0;">{count_value}</div><div style="font-size: 7px; color: #000000;">Critical</div></div>'
+                    boxes_html += f'<div style="background-color: {month_color}; border-radius: 8px; padding: 15px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); flex: 1; min-width: 80px; display: flex; flex-direction: column; justify-content: center;"><div style="font-size: 12px; color: #000000; font-weight: 600; margin-bottom: 5px;">{month}</div><div style="font-size: 36px; color: #000000; font-weight: bold; margin: 5px 0;">{count_value}</div><div style="font-size: 10px; color: #000000;">Critical</div></div>'
                 boxes_html += '</div>'
                 st.markdown(boxes_html, unsafe_allow_html=True)
 
@@ -707,6 +1216,20 @@ def falcon_dashboard_pdf_layout():
                 )
 
         st.markdown('</div>', unsafe_allow_html=True)  # Close Section D
+
+    # ============================================
+    # EXECUTIVE SUMMARY SECTION (DYNAMIC)
+    # ============================================
+    if include_executive_summary:
+        section_letter = section_letters.get('executive', 'E')
+        render_executive_summary(
+            ticket_data=ticket_data,
+            host_data=host_data,
+            detection_data=detection_data,
+            time_data=time_data,
+            num_months=num_months,
+            section_letter=section_letter
+        )
 
 
 def create_chart_with_pivot_logic(df, rows, columns, values, chart_type, height, analysis_key, top_n=None, use_severity_colors=False, use_ticket_status_colors=False, use_monthly_colors=False, sort_by=None, sort_direction='descending'):
