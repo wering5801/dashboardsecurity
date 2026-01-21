@@ -231,8 +231,14 @@ def main_dashboard_report():
     # ============================
     # SIDEBAR CONTROLS
     # ============================
-    # Get ticket data availability
-    ticket_data_available = 'ticket_lifecycle_results' in st.session_state and bool(st.session_state['ticket_lifecycle_results'])
+    # Get ticket data availability - check for actual pivot table keys
+    ticket_data_available = False
+    if 'ticket_lifecycle_results' in st.session_state:
+        ticket_results = st.session_state['ticket_lifecycle_results']
+        if ticket_results:  # Check if dictionary is not empty
+            # Check if there are any pivot table keys (request_severity_pivot_*)
+            has_pivot_data = any(key.startswith('request_severity_pivot_') for key in ticket_results.keys())
+            ticket_data_available = has_pivot_data
 
     # Get actual number of months and create month text helper
     num_months = st.session_state.get('num_months', 3)
@@ -443,6 +449,17 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
 
     ticket_results = st.session_state['ticket_lifecycle_results']
 
+    # Debug: Show what keys are available
+    if not ticket_results:
+        st.error("⚠️ ticket_lifecycle_results is empty or None")
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
+    # Show available keys for debugging
+    with st.expander("🔍 Debug Info - Available Data Keys", expanded=False):
+        st.write(f"Total keys in ticket_lifecycle_results: {len(ticket_results)}")
+        st.write("Keys:", list(ticket_results.keys()))
+
     # Get number of months from session state
     num_months = st.session_state.get('num_months', 1)
 
@@ -478,7 +495,9 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
         st.markdown(f'<h3 class="analysis-title">{section_letter}.1. Count of SeverityName / Status / Request ID for {month_name}</h3>', unsafe_allow_html=True)
 
-        if not pivot_df.empty:
+        if pivot_df.empty:
+            st.warning(f"⚠️ No ticket data available for {month_name}")
+        else:
             # Display the pivot table with styling
             st.markdown(f"### Total Detections Count by Status and Severity for {month_name}")
 
@@ -583,9 +602,10 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
         pending_requests = pivot_df[pivot_df['Status'].isin(['open', 'pending', 'on-hold', 'in_progress'])]['Request ID'].unique()
         pending_request_str = ', '.join([f"Request ID : {req}" for req in pending_requests]) if len(pending_requests) > 0 else "None"
 
-        # Create summary table
+        # Create summary table - use dynamic month name
+        month_display = month_name.split()[0]  # Get just the month name (e.g., "November" from "November 2025")
         summary_df = pd.DataFrame({
-            'Summary for November Detections': [
+            f'Summary for {month_display} Detections': [
                 'Number of alert triggered this month',
                 'Number of alert resolve',
                 'Number of alert pending'
