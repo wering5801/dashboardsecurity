@@ -476,7 +476,7 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
         return
 
     # Process each month
-    for idx, month_name in enumerate(sorted(available_months)):
+    for idx, month_name in enumerate(sorted(available_months), 1):
         month_safe = month_name.replace(' ', '_').replace(',', '')
 
         # Get data for this month
@@ -489,17 +489,20 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
         pivot_df = ticket_results[pivot_key]
         summary_data = ticket_results[summary_key]
 
+        # Use generic month number for display
+        month_display = f"Month {idx}"
+
         # ============================
         # A.1: Request ID Pivot Table
         # ============================
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown(f'<h3 class="analysis-title">{section_letter}.1. Count of SeverityName / Status / Request ID for {month_name}</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.1. Ticket Detections and Status Counts - {month_display}</h3>', unsafe_allow_html=True)
 
         if pivot_df.empty:
-            st.warning(f"⚠️ No ticket data available for {month_name}")
+            st.warning(f"⚠️ No ticket data available for {month_display}")
         else:
             # Display the pivot table with styling
-            st.markdown(f"### Total Detections Count by Status and Severity for {month_name}")
+            st.markdown(f"### Total Detections Count by Status and Severity - {month_display}")
 
             # Create styled dataframe
             def style_severity_columns(val):
@@ -522,7 +525,7 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
                     st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
             # Create stacked bar chart
-            st.markdown(f"### Total Detections Count by Status and Severity for {month_name}")
+            st.markdown(f"### Total Detections Count by Status and Severity - {month_display}")
 
             # Prepare chart data
             chart_df = pivot_df.copy()
@@ -555,7 +558,7 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
             fig.update_layout(
                 barmode='stack',
                 title=dict(
-                    text=f"Total Detections Count by Status and Severity for {month_name}",
+                    text=f"Total Detections Count by Status and Severity - {month_display}",
                     font=dict(size=16)
                 ),
                 xaxis_title="Detection Request Status",
@@ -581,7 +584,7 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
         # A.2: Summary for Detections
         # ============================
         st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown(f'<h3 class="analysis-title">{section_letter}.2. Summary for {month_name} Detections</h3>', unsafe_allow_html=True)
+        st.markdown(f'<h3 class="analysis-title">{section_letter}.2. Detection Summary - {month_display}</h3>', unsafe_allow_html=True)
 
         # Get configuration values (with defaults)
         config = st.session_state.get('pivot_config', {})
@@ -600,22 +603,22 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
 
         # Get pending request IDs
         pending_requests = pivot_df[pivot_df['Status'].isin(['open', 'pending', 'on-hold', 'in_progress'])]['Request ID'].unique()
-        pending_request_str = ', '.join([f"Request ID : {req}" for req in pending_requests]) if len(pending_requests) > 0 else "None"
+        # Format pending request IDs as comma-separated list (e.g., "501111, 501212, 500001")
+        pending_request_str = ', '.join([str(req) for req in pending_requests]) if len(pending_requests) > 0 else "None"
 
-        # Create summary table - use dynamic month name
-        month_display = month_name.split()[0]  # Get just the month name (e.g., "November" from "November 2025")
+        # Create simple summary table
         summary_df = pd.DataFrame({
-            f'Summary for {month_display} Detections': [
+            f'Detection Summary - {month_display}': [
                 'Number of alert triggered this month',
                 'Number of alert resolve',
                 'Number of alert pending'
             ],
-            '': [
+            'Count': [
                 total_alerts,
                 alerts_resolved,
-                f"{alerts_pending}"
+                alerts_pending
             ],
-            'Details': [
+            'Pending Request IDs': [
                 '',
                 '',
                 pending_request_str
@@ -627,7 +630,7 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
         if show_insights:
             st.markdown(f"""
                 <div class="insight-box">
-                    <strong>💡 Key Insight:</strong> For {month_name}, {alerts_resolved} out of {total_alerts} alerts were resolved ({(alerts_resolved/total_alerts*100 if total_alerts > 0 else 0):.1f}% resolution rate). {alerts_pending} alerts remain pending or in progress.
+                    <strong>💡 Key Insight:</strong> For {month_display}, {alerts_resolved} out of {total_alerts} alerts were resolved ({(alerts_resolved/total_alerts*100 if total_alerts > 0 else 0):.1f}% resolution rate). {alerts_pending} alerts remain pending or in progress.
                 </div>
             """, unsafe_allow_html=True)
 
