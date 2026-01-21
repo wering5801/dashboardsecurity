@@ -77,11 +77,13 @@ def pivot_table_builder_dashboard():
         # Create friendly names
         friendly_names = {}
 
-        # Dynamically add ticket lifecycle pivot tables
-        for key in available_analyses:
-            if key.startswith('request_severity_pivot_'):
-                month_name = key.replace('request_severity_pivot_', '').replace('_', ' ')
-                friendly_names[key] = f'Ticket Summary ({month_name})'
+        # Dynamically add ticket lifecycle pivot tables with generic month numbers
+        ticket_keys = [k for k in available_analyses if k.startswith('request_severity_pivot_')]
+        if ticket_keys:
+            # Sort ticket keys to maintain consistent order
+            ticket_keys_sorted = sorted(ticket_keys)
+            for idx, key in enumerate(ticket_keys_sorted, 1):
+                friendly_names[key] = f'Ticket Summary - Month {idx}'
 
         # Add other analysis types
         friendly_names.update({
@@ -139,48 +141,17 @@ def pivot_table_builder_dashboard():
 
         # Define default field configurations for each analysis
         default_configs = {
-            # Ticket Lifecycle Analysis
-            'ticket_status_trend': {
-                'rows': ['Month'],
+            # Ticket Lifecycle Analysis - Request ID pivot tables
+            # These have columns: Status, Request ID, Critical, High, Medium, Low
+            'request_severity_pivot': {
+                'rows': ['Request ID'],
                 'columns': ['Status'],
-                'values': ['Count'],
+                'values': ['Critical', 'High', 'Medium', 'Low'],
                 'aggregation': 'sum',
                 'chart_type': 'Bar Chart',
-                'sort_by': 'Month',
-                'use_ticket_status_colors': True,  # Auto-enable ticket status colors
+                'sort_by': 'Status',
+                'use_ticket_status_colors': False,
                 'use_monthly_colors': False
-            },
-            'ticket_status_pivot': {
-                'rows': ['Status'],
-                'columns': ['Month'],
-                'values': ['Count'],
-                'aggregation': 'sum',
-                'chart_type': 'Bar Chart',
-                'use_monthly_colors': True
-            },
-            'monthly_summary': {
-                'rows': ['Month'],
-                'columns': ['Status'],
-                'values': ['Count'],
-                'aggregation': 'sum',
-                'chart_type': 'Bar Chart',
-                'use_ticket_status_colors': True
-            },
-            'monthly_totals': {
-                'rows': ['Month'],
-                'columns': [],
-                'values': ['Total Tickets'],
-                'aggregation': 'sum',
-                'chart_type': 'Line Chart',
-                'use_monthly_colors': False
-            },
-            'status_distribution': {
-                'rows': ['Status'],
-                'columns': [],
-                'values': ['Count'],
-                'aggregation': 'sum',
-                'chart_type': 'Pie Chart',
-                'use_ticket_status_colors': True
             },
 
             # Host Analysis
@@ -364,8 +335,13 @@ def pivot_table_builder_dashboard():
         # Apply default configuration when analysis changes or first load
         if analysis_changed:
             # Load default config for this analysis if available
-            if selected_analysis_key in default_configs:
-                default = default_configs[selected_analysis_key]
+            # For ticket lifecycle, match keys starting with 'request_severity_pivot_'
+            default_key = selected_analysis_key
+            if selected_analysis_key.startswith('request_severity_pivot_'):
+                default_key = 'request_severity_pivot'
+
+            if default_key in default_configs:
+                default = default_configs[default_key]
 
                 # Only apply defaults if fields exist in the dataframe
                 valid_rows = [r for r in default.get('rows', []) if r in df.columns]
