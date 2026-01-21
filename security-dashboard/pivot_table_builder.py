@@ -141,10 +141,16 @@ def pivot_table_builder_dashboard():
         # These counts should be aggregated by Status to get totals per status
         if selected_analysis_key.startswith('request_severity_pivot_'):
             severity_cols = ['Critical', 'High', 'Medium', 'Low']
-            if all(col in df.columns for col in severity_cols):
+            if all(col in df.columns for col in df.columns):
                 # Ensure numeric types for severity columns
                 for col in severity_cols:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+
+                # Create descriptive column names for easier selection
+                df['Critical Count'] = df['Critical']
+                df['High Count'] = df['High']
+                df['Medium Count'] = df['Medium']
+                df['Low Count'] = df['Low']
 
         st.success(f"✅ Loaded: {selected_analysis_display}")
         st.info(f"📊 {len(df)} rows × {len(df.columns)} columns")
