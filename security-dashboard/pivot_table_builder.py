@@ -136,8 +136,9 @@ def pivot_table_builder_dashboard():
             st.error(f"No data available for {selected_analysis_display}")
             return
 
-        # For ticket lifecycle data, add a "Count of SeverityName" column
-        # This sums all severity columns (Critical, High, Medium, Low) for easier aggregation
+        # For ticket lifecycle data, ensure severity columns are numeric
+        # Each severity column (Critical, High, Medium, Low) contains the COUNT of tickets with that severity
+        # These counts should be aggregated by Status to get totals per status
         if selected_analysis_key.startswith('request_severity_pivot_'):
             severity_cols = ['Critical', 'High', 'Medium', 'Low']
             if all(col in df.columns for col in severity_cols):
@@ -145,16 +146,15 @@ def pivot_table_builder_dashboard():
                 for col in severity_cols:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
 
-                # Create Count of SeverityName as sum of all severities
-                df['Count of SeverityName'] = df[severity_cols].sum(axis=1)
-
         st.success(f"✅ Loaded: {selected_analysis_display}")
         st.info(f"📊 {len(df)} rows × {len(df.columns)} columns")
 
         # Define default field configurations for each analysis
         default_configs = {
             # Ticket Lifecycle Analysis - Request ID pivot tables
-            # These have columns: Status, Request ID, Critical, High, Medium, Low, Count of SeverityName
+            # Data structure: Status, Request ID, Critical, High, Medium, Low
+            # Each severity column contains COUNT of tickets with that severity level
+            # Use Status as rows, sum severity columns to get total counts per status
             'request_severity_pivot': {
                 'rows': ['Status'],
                 'columns': [],
