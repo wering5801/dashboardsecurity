@@ -67,17 +67,24 @@ def pivot_table_builder_dashboard():
         # Step 2: Select Specific Analysis Output
         st.subheader("📊 Step 2: Select Analysis Output")
 
-        # Get available analysis outputs (excluding 'raw_data' and 'raw_data_filtered')
-        available_analyses = [k for k in analysis_results.keys() if k not in ['raw_data', 'raw_data_filtered']]
+        # Get available analysis outputs (excluding 'raw_data', 'raw_data_filtered', summary dicts, and chart_data)
+        available_analyses = [k for k in analysis_results.keys()
+                            if k not in ['raw_data', 'raw_data_filtered']
+                            and not k.startswith('ticket_summary_')
+                            and not k.startswith('chart_data_')
+                            and not k.startswith('raw_data_')]
 
         # Create friendly names
-        friendly_names = {
-            # Ticket Lifecycle Analysis
-            'ticket_status_trend': '1. Ticket Status Trend',
-            'ticket_status_pivot': '2. Ticket Status Pivot',
-            'monthly_summary': '3. Monthly Summary',
-            'monthly_totals': '4. Monthly Totals',
-            'status_distribution': '5. Status Distribution',
+        friendly_names = {}
+
+        # Dynamically add ticket lifecycle pivot tables
+        for key in available_analyses:
+            if key.startswith('request_severity_pivot_'):
+                month_name = key.replace('request_severity_pivot_', '').replace('_', ' ')
+                friendly_names[key] = f'Ticket Summary ({month_name})'
+
+        # Add other analysis types
+        friendly_names.update({
             # Host Analysis
             'overview_key_metrics': '1. Overview - KEY METRICS',
             'overview_top_hosts': '2. Overview - TOP HOSTS WITH DETECTIONS',
@@ -113,7 +120,15 @@ def pivot_table_builder_dashboard():
         analysis_changed = st.session_state['last_analysis_id'] != current_analysis_id
 
         # Get the selected analysis dataframe
-        df = analysis_results[selected_analysis_key].copy()
+        selected_data = analysis_results[selected_analysis_key]
+
+        # Handle dictionary data (like ticket_summary)
+        if isinstance(selected_data, dict) and not hasattr(selected_data, 'copy'):
+            st.warning(f"⚠️ {selected_analysis_display} contains summary metrics (not tabular data)")
+            st.json(selected_data)
+            return
+
+        df = selected_data.copy()
 
         if df.empty:
             st.error(f"No data available for {selected_analysis_display}")
