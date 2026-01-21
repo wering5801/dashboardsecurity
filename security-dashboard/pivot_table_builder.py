@@ -380,6 +380,7 @@ def pivot_table_builder_dashboard():
                 st.session_state['pivot_config']['use_severity_colors'] = default.get('use_severity_colors', False)
                 st.session_state['pivot_config']['use_ticket_status_colors'] = default.get('use_ticket_status_colors', False)
                 st.session_state['pivot_config']['use_monthly_colors'] = default.get('use_monthly_colors', True)
+                st.session_state['pivot_config']['barmode'] = default.get('barmode', 'stack')
 
                 st.info(f"💡 Default configuration loaded for {selected_analysis_display}. You can customize the fields below.")
             else:
@@ -1997,6 +1998,8 @@ def create_pivot_chart(pivot_table, chart_type, height, config, selected_analysi
                             x=x_values,
                             y=clean_pivot[y_col].tolist(),
                             marker_color=bar_colors,
+                            text=clean_pivot[y_col].tolist(),
+                            textposition='outside',
                             hovertext=hover_text,
                             hoverinfo='text',
                             showlegend=False  # Hide the main bar trace from legend
@@ -2022,6 +2025,8 @@ def create_pivot_chart(pivot_table, chart_type, height, config, selected_analysi
                             x=x_values,
                             y=clean_pivot[y_col].tolist(),
                             marker_color='steelblue',
+                            text=clean_pivot[y_col].tolist(),
+                            textposition='outside',
                             showlegend=show_legend
                         )
                     ])

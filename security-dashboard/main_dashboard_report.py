@@ -489,6 +489,10 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
         pivot_df = ticket_results[pivot_key]
         summary_data = ticket_results[summary_key]
 
+        # Validate that pivot_df is a DataFrame
+        if not isinstance(pivot_df, pd.DataFrame):
+            continue
+
         # Use generic month number for display
         month_display = f"Month {idx}"
 
