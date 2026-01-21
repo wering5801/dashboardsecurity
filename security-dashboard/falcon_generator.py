@@ -333,9 +333,9 @@ def falcon_generator_dashboard():
                                 st.success(f"✅ Ticket data uploaded! ({len(temp_df)} rows)")
                                 ticket_files_per_month[month_key] = {'file': ticket_file, 'period': period}
 
-                                # Show preview
-                                with st.expander("👀 Preview (first 5 rows)"):
-                                    st.dataframe(temp_df.head(), use_container_width=True)
+                                # Show preview directly (no nested expander)
+                                st.caption("Preview (first 5 rows):")
+                                st.dataframe(temp_df.head(), use_container_width=True)
                         except Exception as e:
                             st.error(f"❌ Error reading CSV: {str(e)}")
                             all_ticket_files_valid = False
