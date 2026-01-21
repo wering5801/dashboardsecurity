@@ -102,7 +102,7 @@ def pivot_table_builder_dashboard():
             'daily_trends': '1. Daily Trends',
             'hourly_analysis': '2. Hourly Analysis',
             'day_of_week': '3. Day of Week'
-        }
+        })
 
         # Display names for selection
         display_options = [friendly_names.get(k, k.replace('_', ' ').title()) for k in available_analyses]
