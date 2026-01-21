@@ -136,21 +136,33 @@ def pivot_table_builder_dashboard():
             st.error(f"No data available for {selected_analysis_display}")
             return
 
+        # For ticket lifecycle data, add a "Count of SeverityName" column
+        # This sums all severity columns (Critical, High, Medium, Low) for easier aggregation
+        if selected_analysis_key.startswith('request_severity_pivot_'):
+            severity_cols = ['Critical', 'High', 'Medium', 'Low']
+            if all(col in df.columns for col in severity_cols):
+                # Ensure numeric types for severity columns
+                for col in severity_cols:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+
+                # Create Count of SeverityName as sum of all severities
+                df['Count of SeverityName'] = df[severity_cols].sum(axis=1)
+
         st.success(f"✅ Loaded: {selected_analysis_display}")
         st.info(f"📊 {len(df)} rows × {len(df.columns)} columns")
 
         # Define default field configurations for each analysis
         default_configs = {
             # Ticket Lifecycle Analysis - Request ID pivot tables
-            # These have columns: Status, Request ID, Critical, High, Medium, Low
+            # These have columns: Status, Request ID, Critical, High, Medium, Low, Count of SeverityName
             'request_severity_pivot': {
-                'rows': ['Request ID'],
-                'columns': ['Status'],
+                'rows': ['Status'],
+                'columns': [],
                 'values': ['Critical', 'High', 'Medium', 'Low'],
                 'aggregation': 'sum',
                 'chart_type': 'Bar Chart',
                 'sort_by': 'Status',
-                'use_ticket_status_colors': False,
+                'use_ticket_status_colors': True,
                 'use_monthly_colors': False
             },
 
@@ -1229,6 +1241,22 @@ def create_pivot_table(df, config, selected_analysis_key=None):
 
         # TOP N filtering is now applied to SOURCE DATA before creating pivot (see lines 322-347)
         # No need to filter the pivot table itself
+
+        # Fix Total row type conversion issues (PyArrow serialization)
+        # When margins=True creates a Total row, numeric columns may contain "Total" string
+        # Convert numeric columns properly, handling Total row separately
+        if 'Total' in pivot.values or (rows and 'Total' in pivot[rows[0]].values if len(rows) > 0 else False):
+            # Identify numeric value columns (exclude index/grouping columns)
+            grouping_cols = rows + columns if rows and columns else (rows if rows else columns if columns else [])
+            numeric_cols = [col for col in pivot.columns if col not in grouping_cols and pd.api.types.is_numeric_dtype(pivot[col])]
+
+            # For each numeric column, ensure proper int type
+            for col in numeric_cols:
+                try:
+                    # Convert to numeric, coercing errors (like "Total" string) to NaN, then fill with 0
+                    pivot[col] = pd.to_numeric(pivot[col], errors='coerce').fillna(0).astype(int)
+                except:
+                    pass  # Skip if conversion fails
 
         # Sort months chronologically if Month is in the data
         if 'Month' in pivot.columns:
