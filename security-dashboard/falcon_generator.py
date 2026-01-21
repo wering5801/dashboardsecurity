@@ -209,12 +209,12 @@ def falcon_generator_dashboard():
     - **Section A.2**: Summary for Detections (alerts triggered, resolved, pending)
 
     You can either:
-    - **Upload a CSV file** with these **required columns**:
-      - `Period` - Month name (e.g., "November 2025")
+    - **Upload CSV files per month** - One file for each month with these **required columns**:
       - `Status` - closed, in_progress, open, pending, on-hold
       - `SeverityName` - Critical, High, Medium, Low
       - `Request ID` - Detection identifier
       - `Count of SeverityName` - (Optional) Count to avoid repeating rows
+      - Note: The `Period` column is added automatically based on your month selection
     - **Use placeholder data** (auto-generates sample data)
     - **Skip this section** if you don't need ticket lifecycle analysis
 
@@ -247,30 +247,31 @@ def falcon_generator_dashboard():
         # Show format guide
         with st.expander("📖 View CSV Format Requirements", expanded=False):
             st.markdown("""
-            **Required Columns:**
-            - `Period`: Month name (e.g., "October 2025", "November 2025", "December 2025")
+            **Required Columns (per file):**
             - `Status`: closed, in_progress, open, pending, on-hold
             - `SeverityName`: Critical, High, Medium, Low (**REQUIRED**)
             - `Request ID`: Detection identifier (e.g., 503457, 503528)
             - `Count of SeverityName`: Number of occurrences (**OPTIONAL** - use this to avoid repeating rows)
 
+            **Note:** Don't include a `Period` column in your files - it will be added automatically based on the month you selected!
+
             **Sample Format (with Count - Recommended):**
             ```
-            Period,Status,SeverityName,Request ID,Count of SeverityName
-            November 2025,closed,Critical,503528,1
-            November 2025,closed,High,503457,2
-            November 2025,closed,High,503528,7
-            November 2025,closed,Medium,503900,3
-            November 2025,in_progress,Medium,513757,1
+            Status,SeverityName,Request ID,Count of SeverityName
+            closed,Critical,503528,1
+            closed,High,503457,2
+            closed,High,503528,7
+            closed,Medium,503900,3
+            in_progress,Medium,513757,1
             ```
 
             **Sample Format (without Count - repeat rows):**
             ```
-            Period,Status,SeverityName,Request ID
-            November 2025,closed,Critical,503528
-            November 2025,closed,High,503457
-            November 2025,closed,High,503457
-            November 2025,in_progress,Medium,513757
+            Status,SeverityName,Request ID
+            closed,Critical,503528
+            closed,High,503457
+            closed,High,503457
+            in_progress,Medium,513757
             ```
 
             **Output:**
@@ -287,47 +288,67 @@ def falcon_generator_dashboard():
         )
 
         if ticket_data_option == "Upload CSV file":
-            ticket_upload_file = st.file_uploader(
-                "Upload Ticket Data CSV",
-                type=['csv'],
-                key="ticket_upload_file",
-                help="CSV file must contain 'Period' and 'Status' columns"
-            )
+            st.markdown("#### 📁 Upload Ticket Data Per Month")
+            st.markdown("Upload one CSV file per month (same format for each month)")
 
-            if ticket_upload_file:
-                # Validate CSV format before accepting
-                try:
-                    # Read CSV with proper encoding
-                    temp_df = pd.read_csv(ticket_upload_file, encoding='utf-8-sig')
-                    ticket_upload_file.seek(0)  # Reset file pointer
+            # Store ticket files per month
+            ticket_files_per_month = {}
+            all_ticket_files_valid = True
 
-                    # Check required columns
-                    required_columns = ['Period', 'Status', 'SeverityName', 'Request ID']
-                    missing_columns = [col for col in required_columns if col not in temp_df.columns]
+            for i in range(num_months):
+                month_key = f"month_{i}"
+                period = month_data[i]['period']
 
-                    if missing_columns:
-                        st.error(f"❌ Missing required columns: {', '.join(missing_columns)}")
-                        st.info("""
-                        **Required CSV format:**
-                        - `Period` - Month name (e.g., "November 2025")
-                        - `Status` - closed, in_progress, open, pending, on-hold
-                        - `SeverityName` - Critical, High, Medium, Low
-                        - `Request ID` - Detection identifier
-                        - `Count of SeverityName` - (Optional) Count value
+                with st.expander(f"📅 Month {i+1}: {period} - Ticket Data", expanded=(i == 0)):
+                    ticket_file = st.file_uploader(
+                        f"Upload Ticket Data CSV for {period}",
+                        type=['csv'],
+                        key=f"ticket_file_{month_key}",
+                        help=f"CSV with ticket data for {period}"
+                    )
 
-                        📥 Download the sample template above to see the correct format.
-                        """)
-                        ticket_upload_file = None  # Clear invalid file
+                    if ticket_file:
+                        try:
+                            # Read CSV with proper encoding
+                            temp_df = pd.read_csv(ticket_file, encoding='utf-8-sig')
+                            ticket_file.seek(0)  # Reset file pointer
+
+                            # Check required columns
+                            required_columns = ['Status', 'SeverityName', 'Request ID']
+                            missing_columns = [col for col in required_columns if col not in temp_df.columns]
+
+                            if missing_columns:
+                                st.error(f"❌ Missing required columns: {', '.join(missing_columns)}")
+                                st.info("""
+                                **Required CSV format:**
+                                - `Status` - closed, in_progress, open, pending, on-hold
+                                - `SeverityName` - Critical, High, Medium, Low
+                                - `Request ID` - Detection identifier
+                                - `Count of SeverityName` - (Optional) Count value
+
+                                Note: The 'Period' column will be added automatically based on the month you selected.
+                                """)
+                                all_ticket_files_valid = False
+                            else:
+                                st.success(f"✅ Ticket data uploaded! ({len(temp_df)} rows)")
+                                ticket_files_per_month[month_key] = {'file': ticket_file, 'period': period}
+
+                                # Show preview
+                                with st.expander("👀 Preview (first 5 rows)"):
+                                    st.dataframe(temp_df.head(), use_container_width=True)
+                        except Exception as e:
+                            st.error(f"❌ Error reading CSV: {str(e)}")
+                            all_ticket_files_valid = False
                     else:
-                        st.success(f"✅ Ticket data file uploaded successfully! ({len(temp_df)} rows)")
+                        st.warning(f"⚠️ No file uploaded for {period}")
+                        all_ticket_files_valid = False
 
-                        # Show preview
-                        with st.expander("👀 Preview uploaded data (first 5 rows)"):
-                            st.dataframe(temp_df.head(), use_container_width=True)
-                except Exception as e:
-                    st.error(f"❌ Error reading CSV file: {str(e)}")
-                    st.info("Make sure your CSV file is properly formatted and encoded in UTF-8")
-                    ticket_upload_file = None
+            # Store in session state
+            if all_ticket_files_valid and len(ticket_files_per_month) == num_months:
+                st.session_state['ticket_files_per_month'] = ticket_files_per_month
+                ticket_upload_file = "per_month_uploads"  # Flag to indicate per-month uploads
+            else:
+                ticket_upload_file = None
         else:
             st.info("📝 Customize your placeholder ticket data below:")
 
@@ -560,11 +581,22 @@ def falcon_generator_dashboard():
                 # ============================================
                 if use_ticket_data:
                     try:
-                        if ticket_data_option == "Upload CSV file" and ticket_upload_file:
-                            # Read uploaded ticket data with UTF-8 encoding
-                            ticket_df = pd.read_csv(ticket_upload_file, encoding='utf-8-sig')
+                        if ticket_data_option == "Upload CSV file" and ticket_upload_file == "per_month_uploads":
+                            # Handle per-month file uploads
+                            ticket_files = st.session_state.get('ticket_files_per_month', {})
+                            all_dfs = []
+
+                            for month_key, file_info in ticket_files.items():
+                                # Read CSV with UTF-8 encoding
+                                temp_df = pd.read_csv(file_info['file'], encoding='utf-8-sig')
+                                # Add Period column based on the month selected
+                                temp_df['Period'] = file_info['period']
+                                all_dfs.append(temp_df)
+
+                            # Combine all months
+                            ticket_df = pd.concat(all_dfs, ignore_index=True)
                             with status_container:
-                                st.info(f"📊 Processing uploaded ticket data: {len(ticket_df)} records")
+                                st.info(f"📊 Processing uploaded ticket data: {len(ticket_df)} records from {len(ticket_files)} month(s)")
                         else:
                             # Generate placeholder data with per-month custom counts
                             ticket_counts_per_month = st.session_state.get('ticket_config_per_month', {})
