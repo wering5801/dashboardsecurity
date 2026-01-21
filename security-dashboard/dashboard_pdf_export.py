@@ -248,7 +248,7 @@ def falcon_dashboard_pdf_layout():
         st.markdown("### 📊 Report Sections")
         st.markdown("Select sections to include in the report:")
 
-        include_ticket_lifecycle = st.checkbox("Ticket Lifecycle Analysis", value=False, help="Include 3-month ticket status trend analysis", disabled=not ticket_data)
+        include_ticket_lifecycle = st.checkbox("Ticket Lifecycle Analysis", value=bool(ticket_data), help="Include ticket status trend analysis", disabled=not ticket_data)
         include_host_analysis = st.checkbox("Host Security Analysis", value=True, help="Include host security metrics")
         include_detection_analysis = st.checkbox("Detection and Severity Analysis", value=True, help="Include detection and severity trends")
         include_time_analysis = st.checkbox("Time-Based Analysis", value=True, help="Include time-based detection patterns")
@@ -284,27 +284,85 @@ def falcon_dashboard_pdf_layout():
     # TICKET LIFECYCLE ANALYSIS SECTION (DYNAMIC)
     # ============================================
     if include_ticket_lifecycle and ticket_data:
+        import plotly.graph_objects as go
+
         section_letter = section_letters.get('ticket', 'A')
         st.markdown(f'<div class="section-header">{section_letter}. Ticket Lifecycle Analysis</div>', unsafe_allow_html=True)
         st.markdown('<div class="analysis-section">', unsafe_allow_html=True)
 
-        # Ticket Status Trend
-        st.markdown(f'<div class="chart-title">{section_letter}.1. Ticket Status Count Across {month_text} (Open, Pending, On-hold, Closed)</div>', unsafe_allow_html=True)
-        if 'ticket_status_trend' in ticket_data:
-            # Read user configuration from pivot_config session state
-            pivot_config = st.session_state.get('pivot_config', {})
-            user_use_ticket_status_colors = pivot_config.get('use_ticket_status_colors', True)  # Default to True for ticket data
+        # Get available months from ticket data
+        available_months = []
+        for key in ticket_data.keys():
+            if key.startswith('request_severity_pivot_'):
+                month_name = key.replace('request_severity_pivot_', '').replace('_', ' ')
+                available_months.append(month_name)
 
-            create_chart_with_pivot_logic(
-                ticket_data['ticket_status_trend'],
-                rows=['Month'],
-                columns=['Status'],
-                values=['Count'],
-                chart_type='Bar Chart',
-                height=240,
-                analysis_key='ticket_status_trend',
-                use_ticket_status_colors=user_use_ticket_status_colors
-            )
+        if not available_months:
+            st.warning("No ticket pivot data available")
+        else:
+            # Process each month
+            for idx, month_name in enumerate(sorted(available_months), 1):
+                month_safe = month_name.replace(' ', '_').replace(',', '')
+
+                # Get data for this month
+                pivot_key = f'request_severity_pivot_{month_safe}'
+
+                if pivot_key not in ticket_data:
+                    continue
+
+                pivot_df = ticket_data[pivot_key]
+
+                # Validate DataFrame
+                if not isinstance(pivot_df, pd.DataFrame) or pivot_df.empty:
+                    continue
+
+                month_display = f"Month {idx}"
+
+                # Ticket Status Count - Clustered Bar Chart
+                st.markdown(f'<div class="chart-title">{section_letter}.1. Ticket Status Count Across Single Month (Open, Pending, On-hold, Closed) - {month_display}</div>', unsafe_allow_html=True)
+
+                # Aggregate by Status
+                chart_df = pivot_df.groupby('Status')[['Critical', 'High', 'Medium', 'Low']].sum().reset_index()
+
+                # Create clustered bar chart
+                fig = go.Figure()
+
+                severity_colors = {
+                    'Critical': '#DC143C',
+                    'High': '#FF8C00',
+                    'Medium': '#4169E1',
+                    'Low': '#70AD47'
+                }
+
+                for severity in ['Critical', 'High', 'Medium', 'Low']:
+                    if severity in chart_df.columns:
+                        fig.add_trace(go.Bar(
+                            name=severity,
+                            x=chart_df['Status'],
+                            y=chart_df[severity],
+                            marker_color=severity_colors[severity],
+                            text=chart_df[severity],
+                            textposition='outside'
+                        ))
+
+                fig.update_layout(
+                    barmode='group',
+                    xaxis_title="Detection Request Status",
+                    yaxis_title="Number of Detections",
+                    height=240,
+                    showlegend=True,
+                    legend=dict(
+                        title="Severity",
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="right",
+                        x=1
+                    ),
+                    margin=dict(l=40, r=40, t=40, b=40)
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
 
         st.markdown('</div>', unsafe_allow_html=True)  # Close Section A
 
