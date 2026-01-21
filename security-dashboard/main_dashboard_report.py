@@ -524,11 +524,11 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
                     styled_df = display_df.style.applymap(style_severity_columns, subset=['Critical', 'High', 'Medium', 'Low'])
                     st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
-            # Create stacked bar chart
+            # Create clustered bar chart (like Excel Clustered Column)
             st.markdown(f"### Total Detections Count by Status and Severity - {month_display}")
 
-            # Prepare chart data
-            chart_df = pivot_df.copy()
+            # Prepare chart data - aggregate by Status
+            chart_df = pivot_df.groupby('Status')[['Critical', 'High', 'Medium', 'Low']].sum().reset_index()
 
             # Create figure
             fig = go.Figure()
@@ -546,17 +546,16 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
                 if severity in chart_df.columns:
                     fig.add_trace(go.Bar(
                         name=severity,
-                        x=chart_df['Request ID'].astype(str) + ' (' + chart_df['Status'] + ')',
+                        x=chart_df['Status'],
                         y=chart_df[severity],
                         marker_color=severity_colors[severity],
                         text=chart_df[severity],
-                        textposition='inside',
-                        textfont=dict(color='white', size=10),
+                        textposition='outside',
                         hovertemplate=f'<b>{severity}</b><br>Count: %{{y}}<extra></extra>'
                     ))
 
             fig.update_layout(
-                barmode='stack',
+                barmode='group',
                 title=dict(
                     text=f"Total Detections Count by Status and Severity - {month_display}",
                     font=dict(size=16)

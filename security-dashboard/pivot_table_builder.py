@@ -2591,7 +2591,9 @@ def create_pivot_chart(pivot_table, chart_type, height, config, selected_analysi
                         name=str(col),
                         x=x_values,
                         y=clean_pivot[col].tolist(),
-                        marker_color=bar_color
+                        marker_color=bar_color,
+                        text=clean_pivot[col].tolist(),
+                        textposition='outside'
                     ))
 
             # Get barmode from config (default to 'stack' for backwards compatibility)
