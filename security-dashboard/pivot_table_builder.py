@@ -161,6 +161,7 @@ def pivot_table_builder_dashboard():
             # Data structure: Status, Request ID, Critical, High, Medium, Low
             # Each severity column contains COUNT of tickets with that severity level
             # Use Status as rows, sum severity columns to get total counts per status
+            # Use CLUSTERED (grouped) bars instead of stacked for better comparison
             'request_severity_pivot': {
                 'rows': ['Status'],
                 'columns': [],
@@ -168,8 +169,10 @@ def pivot_table_builder_dashboard():
                 'aggregation': 'sum',
                 'chart_type': 'Bar Chart',
                 'sort_by': 'Status',
-                'use_ticket_status_colors': True,
-                'use_monthly_colors': False
+                'use_severity_colors': True,
+                'use_ticket_status_colors': False,
+                'use_monthly_colors': False,
+                'barmode': 'group'  # Clustered bars like Excel
             },
 
             # Host Analysis
@@ -2591,9 +2594,12 @@ def create_pivot_chart(pivot_table, chart_type, height, config, selected_analysi
                         marker_color=bar_color
                     ))
 
+            # Get barmode from config (default to 'stack' for backwards compatibility)
+            barmode = config.get('barmode', 'stack')
+
             fig.update_layout(
                 title=f"{config['aggregation'].title()} by {', '.join(rows + columns if columns else rows)}",
-                barmode='stack',
+                barmode=barmode,
                 xaxis_title=x_title,
                 height=height
             )
