@@ -106,10 +106,16 @@ A comprehensive, interactive security analytics dashboard built with Streamlit f
    ```
 
 4. **Login**
-   - **Username:** `admin`
-   - **Password:** `ThisSOCR3port2026`
+   - **Username:** `admin` (or set via `DASHBOARD_USERNAME` env var)
+   - **Password:** Set via `DASHBOARD_PASSWORD` environment variable
 
-   ⚠️ **Change the default password immediately!** See [AUTH_CONFIG.md](security-dashboard/AUTH_CONFIG.md)
+   ⚠️ **Set password via environment variable before running!**
+   ```bash
+   export DASHBOARD_PASSWORD="YourSecurePassword"
+   streamlit run app.py
+   ```
+
+   See [AUTH_CONFIG.md](AUTH_CONFIG.md) for more details.
 
 ---
 

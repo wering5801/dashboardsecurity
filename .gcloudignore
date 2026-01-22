@@ -25,3 +25,6 @@ gacha 3070/
 .env.local
 test/
 tests/
+nul
+**/__pycache__/
+**/*.pyc

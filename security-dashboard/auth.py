@@ -14,9 +14,9 @@ from datetime import datetime, timedelta
 # ==============================================
 
 # Credentials from environment variables (secure!)
-# Fallback to defaults only for local development
+# IMPORTANT: Set these via environment variables - no default password for security
 DEFAULT_USERNAME = os.getenv("DASHBOARD_USERNAME", "admin")
-DEFAULT_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "ThisSOCR3port2026")
+DEFAULT_PASSWORD = os.getenv("DASHBOARD_PASSWORD")  # Must be set via environment variable
 
 # Session timeout (in minutes)
 SESSION_TIMEOUT_MINUTES = 60
