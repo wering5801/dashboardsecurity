@@ -16,6 +16,19 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List
 
+# Display label mapping for Status values
+STATUS_DISPLAY_LABELS = {
+    'closed': 'Closed',
+    'in_progress': 'In Progress',
+    'open': 'Open',
+    'pending': 'Pending',
+    'on-hold': 'On-Hold'
+}
+
+def format_status_label(status: str) -> str:
+    """Convert internal status to display label"""
+    return STATUS_DISPLAY_LABELS.get(status, status.replace('_', ' ').title())
+
 def generate_ticket_lifecycle_analysis(ticket_df: pd.DataFrame, num_months: int) -> Dict[str, pd.DataFrame]:
     """
     Generate detection status analysis by severity with Request ID pivot table
@@ -140,7 +153,7 @@ def generate_ticket_lifecycle_analysis(ticket_df: pd.DataFrame, num_months: int)
 
                     # Count severity for this Request ID
                     row_data = {
-                        'Status': status,
+                        'Status': format_status_label(status),  # Use display label
                         'Request ID': req_id,
                         'Critical': len(req_df[req_df['SeverityName'] == 'Critical']),
                         'High': len(req_df[req_df['SeverityName'] == 'High']),
@@ -164,12 +177,12 @@ def generate_ticket_lifecycle_analysis(ticket_df: pd.DataFrame, num_months: int)
         # Total alerts = sum of all severity counts across all rows
         total_alerts = int(pivot_df[severity_columns].sum().sum())
 
-        # Alerts resolved = sum of all severity counts where Status is 'closed'
-        closed_df = pivot_df[pivot_df['Status'] == 'closed']
+        # Alerts resolved = sum of all severity counts where Status is 'Closed'
+        closed_df = pivot_df[pivot_df['Status'] == 'Closed']
         alerts_resolved = int(closed_df[severity_columns].sum().sum())
 
         # Alerts pending = sum of all severity counts where Status is in pending states
-        pending_df = pivot_df[pivot_df['Status'].isin(['open', 'pending', 'on-hold', 'in_progress'])]
+        pending_df = pivot_df[pivot_df['Status'].isin(['Open', 'Pending', 'On-Hold', 'In Progress'])]
         alerts_pending = int(pending_df[severity_columns].sum().sum())
 
         # Generate pending Request IDs string with actual alert counts
@@ -206,6 +219,8 @@ def generate_ticket_lifecycle_analysis(ticket_df: pd.DataFrame, num_months: int)
         # ============================================
         # Stacked bar chart data: Request ID x Severity
         chart_data = month_df.groupby(['Request ID', 'Status', 'SeverityName']).size().reset_index(name='Count')
+        # Apply display labels for Status
+        chart_data['Status'] = chart_data['Status'].apply(format_status_label)
         results[f'chart_data_{month_safe}'] = chart_data
 
         # Store raw data for export

@@ -1127,11 +1127,12 @@ def falcon_dashboard_pdf_layout():
                             width: 100%;
                         }
                         .critical-table th {
-                            background-color: #dc3545 !important;
-                            color: white !important;
+                            background-color: #f8d7da !important;
+                            color: #721c24 !important;
                             padding: 4px 6px !important;
                             text-align: left !important;
                             font-weight: 600 !important;
+                            border-bottom: 2px solid #f5c6cb !important;
                         }
                         .critical-table td {
                             padding: 3px 6px !important;
