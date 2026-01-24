@@ -581,7 +581,7 @@ def falcon_dashboard_pdf_layout():
         include_host_analysis = st.checkbox("Host Security Analysis", value=True, help="Include host security metrics")
         include_detection_analysis = st.checkbox("Detection and Severity Analysis", value=True, help="Include detection and severity trends")
         include_time_analysis = st.checkbox("Time-Based Analysis", value=True, help="Include time-based detection patterns")
-        include_executive_summary = st.checkbox("Executive Summary Report", value=True, help="Include professional executive summary with key findings and recommendations")
+        include_executive_summary = st.checkbox("Executive Summary Report", value=False, help="Include professional executive summary with key findings and recommendations")
 
         if not ticket_data:
             st.caption("💡 Ticket Lifecycle Analysis is disabled (no ticket data available)")
@@ -1053,6 +1053,106 @@ def falcon_dashboard_pdf_layout():
                         analysis_key='critical_high_overview',
                         use_monthly_colors=True
                     )
+
+        # ==============================================
+        # CRITICAL DETECTION DETAILS LISTING
+        # Show detailed info when critical count > 0
+        # ==============================================
+        # Check if any month has critical detections
+        has_critical = any(count > 0 for _, count, _ in box_data)
+
+        if has_critical:
+            # Get raw detection data from session state
+            raw_detection_data = st.session_state.get('three_month_trend_data', {}).get('detection_analysis', pd.DataFrame())
+
+            if not raw_detection_data.empty and 'SeverityName' in raw_detection_data.columns:
+                # Filter for Critical severity only
+                critical_records = raw_detection_data[
+                    raw_detection_data['SeverityName'].str.lower() == 'critical'
+                ].copy()
+
+                if not critical_records.empty:
+                    st.markdown(f'<div class="chart-title" style="margin-top: 15px;">{section_letter}.1a. Critical Severity Detection Details</div>', unsafe_allow_html=True)
+
+                    # Define columns to display (check which ones exist)
+                    display_columns = []
+                    column_mapping = {
+                        'Hostname': 'Hostname',
+                        'UserName': 'Username',
+                        'FileName': 'Filename',
+                        'Objective': 'Objective',
+                        'Tactic': 'Tactic',
+                        'Technique': 'Technique'
+                    }
+
+                    for col, display_name in column_mapping.items():
+                        if col in critical_records.columns:
+                            display_columns.append(col)
+
+                    if display_columns:
+                        # Create display dataframe with only relevant columns
+                        display_df = critical_records[display_columns].copy()
+
+                        # Rename columns for display
+                        display_df.columns = [column_mapping.get(col, col) for col in display_df.columns]
+
+                        # Add Month column if available (from Detect MALAYSIA TIME FORMULA)
+                        if 'Detect MALAYSIA TIME FORMULA' in critical_records.columns:
+                            try:
+                                critical_records['Month'] = pd.to_datetime(
+                                    critical_records['Detect MALAYSIA TIME FORMULA'],
+                                    errors='coerce'
+                                ).dt.strftime('%B %Y')
+                                display_df.insert(0, 'Month', critical_records['Month'])
+                            except:
+                                pass
+
+                        # Style the table with compact formatting for PDF
+                        st.markdown("""
+                        <style>
+                        .critical-table {
+                            font-size: 9px !important;
+                            width: 100%;
+                        }
+                        .critical-table th {
+                            background-color: #dc3545 !important;
+                            color: white !important;
+                            padding: 4px 6px !important;
+                            text-align: left !important;
+                            font-weight: 600 !important;
+                        }
+                        .critical-table td {
+                            padding: 3px 6px !important;
+                            border-bottom: 1px solid #dee2e6 !important;
+                            font-size: 8px !important;
+                        }
+                        .critical-table tr:nth-child(even) {
+                            background-color: #f8f9fa !important;
+                        }
+                        </style>
+                        """, unsafe_allow_html=True)
+
+                        # Convert to HTML table
+                        html_table = '<table class="critical-table"><thead><tr>'
+                        for col in display_df.columns:
+                            html_table += f'<th>{col}</th>'
+                        html_table += '</tr></thead><tbody>'
+
+                        for _, row in display_df.iterrows():
+                            html_table += '<tr>'
+                            for col in display_df.columns:
+                                value = row[col] if pd.notna(row[col]) else '-'
+                                # Truncate long values for display
+                                if isinstance(value, str) and len(value) > 30:
+                                    value = value[:27] + '...'
+                                html_table += f'<td>{value}</td>'
+                            html_table += '</tr>'
+
+                        html_table += '</tbody></table>'
+                        st.markdown(html_table, unsafe_allow_html=True)
+
+                        # Show count summary
+                        st.markdown(f'<div style="font-size: 9px; color: #dc3545; margin-top: 5px; font-style: italic;">⚠️ Total Critical Detections: {len(critical_records)} record(s) requiring immediate attention</div>', unsafe_allow_html=True)
 
         # C.2 and C.3 side by side
         col1, col2 = st.columns(2)
