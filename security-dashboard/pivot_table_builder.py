@@ -1812,8 +1812,8 @@ def create_pivot_chart(pivot_table, chart_type, height, config, selected_analysi
             if 'Month' in columns or any('Month' in str(c) for c in columns):
                 # Month is in columns - color the month columns
                 plot_cols = [col for col in clean_pivot.columns if col not in rows]
-                # Find all month columns
-                month_cols = sorted([c for c in plot_cols if any(m in str(c) for m in month_order.keys())],
+                # Find all month columns (use global MONTH_NAME_TO_NUM)
+                month_cols = sorted([c for c in plot_cols if any(m in str(c) for m in MONTH_NAME_TO_NUM.keys())],
                                   key=lambda x: get_month_sort_key(x))
 
                 for idx, month_col in enumerate(month_cols):
@@ -1871,8 +1871,8 @@ def create_pivot_chart(pivot_table, chart_type, height, config, selected_analysi
                         clean_pivot = clean_pivot.sort_values('_row_total', ascending=sort_ascending)
                         clean_pivot = clean_pivot.drop(columns=['_row_total'])
 
-                # Also sort month columns chronologically
-                month_cols = [col for col in numeric_cols if any(m in str(col) for m in month_order.keys())]
+                # Also sort month columns chronologically (use global MONTH_NAME_TO_NUM)
+                month_cols = [col for col in numeric_cols if any(m in str(col) for m in MONTH_NAME_TO_NUM.keys())]
                 if month_cols:
                     # Sort month columns chronologically
                     month_col_order = sorted(month_cols, key=lambda x: get_month_sort_key(x))
