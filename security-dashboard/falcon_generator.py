@@ -1112,21 +1112,44 @@ def generate_detection_with_detected_columns(df1, df2, df3, df4, data_notes):
 
 def generate_time_with_detected_columns(df1, data_notes):
     """Generate Time Analysis using detected columns"""
-    
+
+    print(f"[Time Template] Generating time analysis template...")
+    print(f"[Time Template] df1 columns: {df1.columns.tolist()}")
+    print(f"[Time Template] df1 records: {len(df1)}")
+
     if df1.empty or 'UniqueNo' not in df1.columns:
+        print(f"[Time Template] WARNING: df1 is empty or missing UniqueNo column!")
         return pd.DataFrame()
-    
+
     # Use YOUR data as-is
     time_cols = ['UniqueNo', 'Hostname', 'Detect MALAYSIA TIME FORMULA']
     available_cols = [col for col in time_cols if col in df1.columns]
-    
+
+    print(f"[Time Template] Required columns: {time_cols}")
+    print(f"[Time Template] Available columns: {available_cols}")
+
+    # Check if timestamp column exists
+    if 'Detect MALAYSIA TIME FORMULA' not in df1.columns:
+        print(f"[Time Template] WARNING: 'Detect MALAYSIA TIME FORMULA' column NOT FOUND!")
+        print(f"[Time Template] Looking for similar columns...")
+        similar_cols = [c for c in df1.columns if 'detect' in c.lower() or 'time' in c.lower() or 'malaysia' in c.lower()]
+        print(f"[Time Template] Similar columns found: {similar_cols}")
+    else:
+        # Check for non-empty values
+        non_null_count = df1['Detect MALAYSIA TIME FORMULA'].notna().sum()
+        non_empty_count = (df1['Detect MALAYSIA TIME FORMULA'] != '').sum()
+        print(f"[Time Template] Timestamp column: {non_null_count} non-null, {non_empty_count} non-empty values")
+        print(f"[Time Template] Sample timestamps: {df1['Detect MALAYSIA TIME FORMULA'].head(3).tolist()}")
+
     result_df = df1[available_cols].copy() if available_cols else df1[['UniqueNo']].copy()
-    
+
     # Fill missing columns
     for col in time_cols:
         if col not in result_df.columns:
             result_df[col] = ''
-    
+            print(f"[Time Template] Added empty column: {col}")
+
+    print(f"[Time Template] Final template: {len(result_df)} records")
     return result_df
 
 def display_results_clean(templates: Dict, data_notes: Dict):

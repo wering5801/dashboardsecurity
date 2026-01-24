@@ -28,9 +28,13 @@ def generate_time_analysis(time_template_df, num_months=1):
     """
 
     print(f"[Time Analysis Generator] Processing {len(time_template_df)} records for {num_months} month(s)...")
+    print(f"[Time Analysis Generator] Columns in data: {time_template_df.columns.tolist()}")
 
-    # Ensure required columns exist
-    required_cols = ['UniqueNo', 'Hostname', 'Period']
+    # Check if Period column exists (this is the user-selected month)
+    has_period = 'Period' in time_template_df.columns
+    if has_period:
+        unique_periods = time_template_df['Period'].unique().tolist()
+        print(f"[Time Analysis Generator] Unique Periods in raw data: {unique_periods}")
 
     # Check for timestamp column (can have different names)
     timestamp_col = None
@@ -48,8 +52,29 @@ def generate_time_analysis(time_template_df, num_months=1):
 
     # Clean data - use .copy() to avoid SettingWithCopyWarning
     df = time_template_df.copy()
+
+    # Debug: Show records before filtering
+    print(f"[Time Analysis Generator] Total records before filtering: {len(df)}")
+    if has_period:
+        for period in df['Period'].unique():
+            count = len(df[df['Period'] == period])
+            print(f"[Time Analysis Generator]   - {period}: {count} records")
+
     df = df[df['UniqueNo'].notna()].copy()
+    print(f"[Time Analysis Generator] Records after UniqueNo filter: {len(df)}")
+
+    # Check timestamp column for empty/null values per period
+    if has_period:
+        for period in df['Period'].unique():
+            period_df = df[df['Period'] == period]
+            non_null_timestamps = period_df[timestamp_col].notna().sum()
+            null_timestamps = period_df[timestamp_col].isna().sum()
+            empty_timestamps = (period_df[timestamp_col] == '').sum()
+            print(f"[Time Analysis Generator]   - {period}: {non_null_timestamps} valid, {null_timestamps} null, {empty_timestamps} empty timestamps")
+
     df = df[df[timestamp_col].notna()].copy()
+    df = df[df[timestamp_col] != ''].copy()  # Also filter empty strings
+    print(f"[Time Analysis Generator] Records after timestamp filter: {len(df)}")
 
     # Debug: Show sample timestamps BEFORE parsing
     print(f"[Time Analysis Generator] Sample raw timestamps (first 10):")
@@ -125,6 +150,25 @@ def generate_time_analysis(time_template_df, num_months=1):
         print(f"[Time Analysis Generator] WARNING: {final_null_count} records failed ALL parsing attempts")
         failed_samples = df[df['ParsedDateTime'].isna()][timestamp_col].head(5).tolist()
         print(f"[Time Analysis Generator] Sample failed timestamps: {failed_samples}")
+
+        # FALLBACK: Use Period column for failed records if available
+        if 'Period' in df.columns:
+            failed_mask = df['ParsedDateTime'].isna()
+            print(f"[Time Analysis Generator] Using Period column as fallback for {failed_mask.sum()} records...")
+
+            # For failed records, create a dummy datetime from Period (first day of month)
+            for idx in df[failed_mask].index:
+                period = df.loc[idx, 'Period']
+                if pd.notna(period):
+                    try:
+                        # Parse "January 2026" format
+                        dummy_date = pd.to_datetime(f"1 {period}", format='%d %B %Y')
+                        df.loc[idx, 'ParsedDateTime'] = dummy_date
+                    except:
+                        pass
+
+            recovered = failed_mask.sum() - df['ParsedDateTime'].isna().sum()
+            print(f"[Time Analysis Generator] Recovered {recovered} records using Period fallback")
     else:
         print(f"[Time Analysis Generator] SUCCESS: All {len(df)} timestamps parsed successfully!")
 
