@@ -970,8 +970,8 @@ def falcon_dashboard_pdf_layout():
         st.markdown(f'<div class="chart-title">{section_letter}.1. Detection Count by Severity Across {month_text} Trends</div>', unsafe_allow_html=True)
 
         if 'critical_high_overview' in detection_data:
-            # Get unique months sorted chronologically
-            month_order = {
+            # Get unique months sorted chronologically (by year AND month)
+            month_name_to_num = {
                 'January': 1, 'February': 2, 'March': 3, 'April': 4,
                 'May': 5, 'June': 6, 'July': 7, 'August': 8,
                 'September': 9, 'October': 10, 'November': 11, 'December': 12,
@@ -980,12 +980,24 @@ def falcon_dashboard_pdf_layout():
             }
 
             def get_month_sort_key(month_str):
+                """Sort by year first, then month (chronological order)"""
                 if pd.isna(month_str):
-                    return 999
-                for month_name, order in month_order.items():
-                    if month_name in str(month_str):
-                        return order
-                return 0
+                    return (9999, 99)
+                month_str = str(month_str)
+
+                # Extract year (4-digit number)
+                import re
+                year_match = re.search(r'(\d{4})', month_str)
+                year = int(year_match.group(1)) if year_match else 2000
+
+                # Extract month number
+                month_num = 0
+                for month_name, num in month_name_to_num.items():
+                    if month_name in month_str:
+                        month_num = num
+                        break
+
+                return (year, month_num)
 
             # Get sorted months
             if 'Month' in detection_data['critical_high_overview'].columns:
@@ -1150,9 +1162,6 @@ def falcon_dashboard_pdf_layout():
 
                         html_table += '</tbody></table>'
                         st.markdown(html_table, unsafe_allow_html=True)
-
-                        # Show count summary
-                        st.markdown(f'<div style="font-size: 9px; color: #dc3545; margin-top: 5px; font-style: italic;">⚠️ Total Critical Detections: {len(critical_records)} record(s) requiring immediate attention</div>', unsafe_allow_html=True)
 
         # C.2 and C.3 side by side
         col1, col2 = st.columns(2)

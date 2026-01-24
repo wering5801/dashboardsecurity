@@ -12,6 +12,41 @@ from reportlab.lib.units import inch
 from reportlab.lib import colors as reportlab_colors
 import tempfile
 import os
+import re
+
+# ==============================================================================
+# GLOBAL HELPER: Chronological month sorting (by year AND month)
+# ==============================================================================
+MONTH_NAME_TO_NUM = {
+    'January': 1, 'February': 2, 'March': 3, 'April': 4,
+    'May': 5, 'June': 6, 'July': 7, 'August': 8,
+    'September': 9, 'October': 10, 'November': 11, 'December': 12,
+    'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'Jun': 6,
+    'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+}
+
+def get_chronological_sort_key(month_str):
+    """
+    Sort months chronologically by year AND month.
+    E.g., "November 2025" < "December 2025" < "January 2026"
+    Returns tuple (year, month_num) for proper sorting.
+    """
+    if pd.isna(month_str):
+        return (9999, 99)
+    month_str = str(month_str)
+
+    # Extract year (4-digit number)
+    year_match = re.search(r'(\d{4})', month_str)
+    year = int(year_match.group(1)) if year_match else 2000
+
+    # Extract month number
+    month_num = 0
+    for month_name, num in MONTH_NAME_TO_NUM.items():
+        if month_name in month_str:
+            month_num = num
+            break
+
+    return (year, month_num)
 
 def pivot_table_builder_dashboard():
     """
@@ -1373,25 +1408,11 @@ def create_pivot_table(df, config, selected_analysis_key=None):
 
         # Sort months chronologically if Month is in the data
         if 'Month' in pivot.columns:
-            # Define month order
-            month_order = {
-                'January': 1, 'February': 2, 'March': 3, 'April': 4,
-                'May': 5, 'June': 6, 'July': 7, 'August': 8,
-                'September': 9, 'October': 10, 'November': 11, 'December': 12,
-                # Handle abbreviated formats
-                'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-                'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
-            }
-
-            # Create a sort key for months
+            # Create a sort key for months (use global chronological sort)
             def get_month_sort_key(month_str):
                 if pd.isna(month_str) or month_str == 'Total':
-                    return 999  # Put Total at the end
-                # Try to extract month name from string like "June 2025"
-                for month_name, order in month_order.items():
-                    if month_name in str(month_str):
-                        return order
-                return 0
+                    return (9999, 99)  # Put Total at the end
+                return get_chronological_sort_key(month_str)
 
             pivot['_month_sort'] = pivot['Month'].apply(get_month_sort_key)
 
@@ -1436,24 +1457,9 @@ def create_detection_key_metrics_cards(df):
         all_metrics = [m for m in metric_order if m in available_metrics]
 
         # Get unique months and sort chronologically
-        month_order = {
-            'January': 1, 'February': 2, 'March': 3, 'April': 4,
-            'May': 5, 'June': 6, 'July': 7, 'August': 8,
-            'September': 9, 'October': 10, 'November': 11, 'December': 12,
-            'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-            'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
-        }
-
-        def get_month_sort_key(month_str):
-            if pd.isna(month_str):
-                return 999
-            for month_name, order in month_order.items():
-                if month_name in str(month_str):
-                    return order
-            return 0
-
+        # Use global chronological sorting for months
         if 'Month' in df.columns:
-            months = sorted(df['Month'].unique(), key=get_month_sort_key)
+            months = sorted(df['Month'].unique(), key=get_chronological_sort_key)
         else:
             months = ['Single Month']
 
@@ -1539,25 +1545,9 @@ def create_severity_trend_stacked_bar_chart(df, height):
             return None
 
         # Sort months chronologically
-        month_order = {
-            'January': 1, 'February': 2, 'March': 3, 'April': 4,
-            'May': 5, 'June': 6, 'July': 7, 'August': 8,
-            'September': 9, 'October': 10, 'November': 11, 'December': 12,
-            'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-            'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
-        }
-
-        def get_month_sort_key(month_str):
-            if pd.isna(month_str):
-                return 999
-            for month_name, order in month_order.items():
-                if month_name in str(month_str):
-                    return order
-            return 0
-
-        # Get unique months sorted chronologically
+        # Get unique months sorted chronologically (use global function)
         if 'Month' in df.columns:
-            months = sorted(df['Month'].unique(), key=get_month_sort_key)
+            months = sorted(df['Month'].unique(), key=get_chronological_sort_key)
         else:
             months = ['Single Month']
 
@@ -1634,25 +1624,9 @@ def create_detection_key_metrics_bar_chart(df, height):
             return None
 
         # Sort months chronologically
-        month_order = {
-            'January': 1, 'February': 2, 'March': 3, 'April': 4,
-            'May': 5, 'June': 6, 'July': 7, 'August': 8,
-            'September': 9, 'October': 10, 'November': 11, 'December': 12,
-            'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-            'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
-        }
-
-        def get_month_sort_key(month_str):
-            if pd.isna(month_str):
-                return 999
-            for month_name, order in month_order.items():
-                if month_name in str(month_str):
-                    return order
-            return 0
-
-        # Get unique months and metrics
+        # Get unique months and metrics (use global chronological sorting)
         if 'Month' in df.columns:
-            months = sorted(df['Month'].unique(), key=get_month_sort_key)
+            months = sorted(df['Month'].unique(), key=get_chronological_sort_key)
         else:
             months = ['Single Month']
 
@@ -1769,25 +1743,13 @@ def create_pivot_chart(pivot_table, chart_type, height, config, selected_analysi
         columns = config['columns']
         values = config.get('values', [])
 
-        # Month order for chronological sorting (define BEFORE using it)
-        month_order = {
-            'January': 1, 'February': 2, 'March': 3, 'April': 4,
-            'May': 5, 'June': 6, 'July': 7, 'August': 8,
-            'September': 9, 'October': 10, 'November': 11, 'December': 12,
-            'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-            'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
-            'June': 6, 'July': 7, 'August': 8  # Full month names
-        }
-
+        # Use global chronological sorting function
         def get_month_sort_key(month_str):
             if pd.isna(month_str):
-                return 999
-            for month_name, order in month_order.items():
-                if month_name in str(month_str):
-                    return order
-            return 0
+                return (9999, 99)
+            return get_chronological_sort_key(month_str)
 
-        # Detect data type and assign colors (NOW after month_order is defined)
+        # Detect data type and assign colors
         # Check if Month is in the pivot columns OR in the config columns (before pivot)
         has_month = 'Month' in clean_pivot.columns or 'Month' in columns or 'Month' in rows
 
