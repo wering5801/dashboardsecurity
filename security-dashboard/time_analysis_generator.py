@@ -56,36 +56,67 @@ def generate_time_analysis(time_template_df, num_months=1):
     print(df[timestamp_col].head(10).tolist())
 
     # Parse datetime from timestamp column
-    # The data has MIXED formats: "2025/08/10 09:12:52 PM" (YYYY/MM/DD) and "31/07/2025 01:31:09 AM" (DD/MM/YYYY)
-    # We need to try BOTH formats
+    # Support multiple formats:
+    # - "2025/08/10 09:12:52 PM" (YYYY/MM/DD HH:MM:SS AM/PM)
+    # - "31/07/2025 01:31:09 AM" (DD/MM/YYYY HH:MM:SS AM/PM)
+    # - "21/01/2026 05:16:40 PM" (DD/MM/YYYY HH:MM:SS AM/PM)
 
     print(f"[Time Analysis Generator] Parsing timestamps with MIXED format support...")
+    print(f"[Time Analysis Generator] Sample timestamps to parse: {df[timestamp_col].head(3).tolist()}")
 
-    # First, try YYYY/MM/DD format for all records
-    df['ParsedDateTime'] = pd.to_datetime(df[timestamp_col], errors='coerce', format='%Y/%m/%d %I:%M:%S %p')
+    # Initialize ParsedDateTime column
+    df['ParsedDateTime'] = pd.NaT
 
-    # For records that failed, try DD/MM/YYYY format
-    failed_mask = df['ParsedDateTime'].isna()
-    failed_count_format1 = failed_mask.sum()
+    # Try multiple date formats in order of preference
+    date_formats = [
+        '%Y/%m/%d %I:%M:%S %p',   # 2025/08/10 09:12:52 PM
+        '%d/%m/%Y %I:%M:%S %p',   # 31/07/2025 01:31:09 AM or 21/01/2026 05:16:40 PM
+        '%Y-%m-%d %H:%M:%S',      # 2025-08-10 09:12:52 (24-hour)
+        '%d-%m-%Y %H:%M:%S',      # 10-08-2025 09:12:52 (24-hour)
+        '%Y/%m/%d %H:%M:%S',      # 2025/08/10 09:12:52 (24-hour)
+        '%d/%m/%Y %H:%M:%S',      # 31/07/2025 09:12:52 (24-hour)
+    ]
 
-    if failed_count_format1 > 0:
-        print(f"[Time Analysis Generator] {failed_count_format1} records failed YYYY/MM/DD format, trying DD/MM/YYYY...")
+    for fmt in date_formats:
+        failed_mask = df['ParsedDateTime'].isna()
+        if not failed_mask.any():
+            break  # All parsed successfully
+
+        failed_count = failed_mask.sum()
+        print(f"[Time Analysis Generator] Trying format '{fmt}' for {failed_count} unparsed records...")
+
         df.loc[failed_mask, 'ParsedDateTime'] = pd.to_datetime(
             df.loc[failed_mask, timestamp_col],
             errors='coerce',
-            format='%d/%m/%Y %I:%M:%S %p'
+            format=fmt
         )
 
-    # For any remaining failures, try flexible parsing
+        newly_parsed = failed_count - df['ParsedDateTime'].isna().sum()
+        if newly_parsed > 0:
+            print(f"[Time Analysis Generator] Successfully parsed {newly_parsed} records with format '{fmt}'")
+
+    # For any remaining failures, try flexible parsing with dayfirst=True
     still_failed_mask = df['ParsedDateTime'].isna()
     still_failed_count = still_failed_mask.sum()
 
     if still_failed_count > 0:
-        print(f"[Time Analysis Generator] {still_failed_count} records still failed, trying flexible parsing...")
+        print(f"[Time Analysis Generator] {still_failed_count} records still failed, trying flexible parsing (dayfirst=True)...")
         df.loc[still_failed_mask, 'ParsedDateTime'] = pd.to_datetime(
             df.loc[still_failed_mask, timestamp_col],
             errors='coerce',
             dayfirst=True
+        )
+
+    # Final fallback: try without dayfirst
+    final_failed_mask = df['ParsedDateTime'].isna()
+    final_failed_count = final_failed_mask.sum()
+
+    if final_failed_count > 0:
+        print(f"[Time Analysis Generator] {final_failed_count} records still failed, trying flexible parsing (dayfirst=False)...")
+        df.loc[final_failed_mask, 'ParsedDateTime'] = pd.to_datetime(
+            df.loc[final_failed_mask, timestamp_col],
+            errors='coerce',
+            dayfirst=False
         )
 
     # Debug: Check final failure count
@@ -96,6 +127,11 @@ def generate_time_analysis(time_template_df, num_months=1):
         print(f"[Time Analysis Generator] Sample failed timestamps: {failed_samples}")
     else:
         print(f"[Time Analysis Generator] SUCCESS: All {len(df)} timestamps parsed successfully!")
+
+    # Show unique months detected BEFORE filtering
+    df_temp = df[df['ParsedDateTime'].notna()].copy()
+    df_temp['_TempMonth'] = df_temp['ParsedDateTime'].dt.strftime('%B %Y')
+    print(f"[Time Analysis Generator] Unique months from parsed timestamps: {df_temp['_TempMonth'].unique().tolist()}")
 
     # Remove rows with invalid dates
     df = df[df['ParsedDateTime'].notna()]
