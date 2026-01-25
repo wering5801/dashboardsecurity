@@ -489,6 +489,372 @@ def render_executive_summary(ticket_data, host_data, detection_data, time_data, 
 
 
 # ============================================
+# SCREEN CAPTURE TO PDF - SIDEBAR TOOL
+# ============================================
+
+def render_capture_modal():
+    """
+    Screen capture tool - opens PNG to PDF converter in new tab
+    User captures with GoFullPage, then uploads PNG to convert
+    """
+    import streamlit.components.v1 as components
+
+    st.markdown("---")
+    st.markdown("#### 📸 How to Use")
+    st.markdown("""
+    1. Use **GoFullPage** extension to capture
+    2. Save as **PNG** file
+    3. Click button below to open converter
+    4. Upload PNG → Preview → Download PDF
+    """)
+
+    # Button to open PNG to PDF converter in new tab
+    components.html("""
+    <style>
+        .open-btn {
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            width: 100%;
+            margin: 10px 0;
+        }
+        .open-btn:hover {
+            background: linear-gradient(135deg, #00e5ff, #00aadd);
+            transform: translateY(-1px);
+        }
+    </style>
+
+    <button class="open-btn" onclick="openConverter()">
+        📄 Open PNG to PDF Converter
+    </button>
+
+    <script>
+    function openConverter() {
+        const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PNG to PDF Converter - Falcon Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\\/script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #fff;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 1.8rem;
+            color: #00d4ff;
+        }
+        .upload-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            border: 2px dashed #00d4ff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+        .upload-section:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: #00ff88;
+        }
+        .upload-section.dragover {
+            background: rgba(0, 212, 255, 0.2);
+            border-color: #00ff88;
+        }
+        .upload-icon { font-size: 48px; margin-bottom: 15px; }
+        .upload-text { font-size: 1.1rem; color: #ccc; }
+        #fileInput { display: none; }
+        .preview-section {
+            display: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .preview-section.active { display: block; }
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .preview-title { font-size: 1.2rem; color: #00d4ff; }
+        .file-info { font-size: 0.9rem; color: #aaa; }
+        .preview-container {
+            background: #fff;
+            border-radius: 10px;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+            max-height: 400px;
+            overflow: auto;
+        }
+        #imagePreview { max-width: 100%; max-height: 380px; object-fit: contain; }
+        .pdf-preview-section {
+            display: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .pdf-preview-section.active { display: block; }
+        .pdf-preview-container {
+            background: #fff;
+            border-radius: 10px;
+            width: 100%;
+            height: 400px;
+        }
+        #pdfPreview { width: 100%; height: 100%; border: none; border-radius: 10px; }
+        .buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 12px 30px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .btn-convert {
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            color: #fff;
+        }
+        .btn-convert:hover { transform: translateY(-2px); }
+        .btn-download {
+            background: linear-gradient(135deg, #00ff88, #00cc6a);
+            color: #1a1a2e;
+        }
+        .btn-download:hover { transform: translateY(-2px); }
+        .btn-reset {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+        .btn-reset:hover { background: rgba(255, 255, 255, 0.3); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .status {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.95rem;
+            color: #00ff88;
+        }
+        .status.error { color: #ff6b6b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📄 PNG to PDF Converter</h1>
+
+        <div class="upload-section" id="uploadSection">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">Click or drag & drop PNG image here</div>
+            <input type="file" id="fileInput" accept="image/png,image/jpeg,image/jpg">
+        </div>
+
+        <div class="preview-section" id="previewSection">
+            <div class="preview-header">
+                <span class="preview-title">Image Preview</span>
+                <span class="file-info" id="fileInfo"></span>
+            </div>
+            <div class="preview-container">
+                <img id="imagePreview" alt="Preview">
+            </div>
+        </div>
+
+        <div class="pdf-preview-section" id="pdfPreviewSection">
+            <div class="preview-header">
+                <span class="preview-title">PDF Preview</span>
+            </div>
+            <div class="pdf-preview-container">
+                <iframe id="pdfPreview"></iframe>
+            </div>
+        </div>
+
+        <div class="buttons">
+            <button class="btn btn-convert" id="convertBtn" disabled>✅ Convert to PDF</button>
+            <button class="btn btn-download" id="downloadBtn" disabled>⬇️ Download PDF</button>
+            <button class="btn btn-reset" id="resetBtn">🔄 Reset</button>
+        </div>
+
+        <div class="status" id="status"></div>
+    </div>
+
+    <script>
+        const { jsPDF } = window.jspdf;
+        const uploadSection = document.getElementById('uploadSection');
+        const fileInput = document.getElementById('fileInput');
+        const previewSection = document.getElementById('previewSection');
+        const imagePreview = document.getElementById('imagePreview');
+        const fileInfo = document.getElementById('fileInfo');
+        const pdfPreviewSection = document.getElementById('pdfPreviewSection');
+        const pdfPreview = document.getElementById('pdfPreview');
+        const convertBtn = document.getElementById('convertBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const status = document.getElementById('status');
+
+        let currentImage = null;
+        let pdfBlobUrl = null;
+
+        uploadSection.addEventListener('click', () => fileInput.click());
+
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                handleFile(file);
+            } else {
+                showStatus('Please upload an image file (PNG/JPG).', true);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleFile(file);
+        });
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                currentImage = new Image();
+                currentImage.onload = () => {
+                    imagePreview.src = currentImage.src;
+                    fileInfo.textContent = file.name + ' (' + currentImage.width + ' x ' + currentImage.height + 'px)';
+                    previewSection.classList.add('active');
+                    pdfPreviewSection.classList.remove('active');
+                    convertBtn.disabled = false;
+                    downloadBtn.disabled = true;
+                    showStatus('Image loaded. Click "Convert to PDF" to proceed.');
+                };
+                currentImage.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        convertBtn.addEventListener('click', () => {
+            if (!currentImage) return;
+            showStatus('Converting to PDF...');
+
+            const imgWidth = currentImage.width;
+            const imgHeight = currentImage.height;
+            const pxToMm = 25.4 / 96;
+            let pdfWidth = imgWidth * pxToMm;
+            let pdfHeight = imgHeight * pxToMm;
+
+            // Max A1 size for large captures
+            const maxWidth = 594;
+            const maxHeight = 841;
+
+            if (pdfWidth > maxWidth) {
+                const scale = maxWidth / pdfWidth;
+                pdfWidth = maxWidth;
+                pdfHeight = pdfHeight * scale;
+            }
+            if (pdfHeight > maxHeight) {
+                const scale = maxHeight / pdfHeight;
+                pdfHeight = maxHeight;
+                pdfWidth = pdfWidth * scale;
+            }
+
+            pdfWidth = Math.max(pdfWidth, 50);
+            pdfHeight = Math.max(pdfHeight, 50);
+
+            const orientation = pdfWidth > pdfHeight ? 'landscape' : 'portrait';
+            const pdf = new jsPDF({
+                orientation: orientation,
+                unit: 'mm',
+                format: [pdfWidth, pdfHeight]
+            });
+
+            pdf.addImage(currentImage.src, 'PNG', 0, 0, pdfWidth, pdfHeight);
+
+            if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
+            pdfBlobUrl = URL.createObjectURL(pdf.output('blob'));
+
+            pdfPreview.src = pdfBlobUrl;
+            pdfPreviewSection.classList.add('active');
+            downloadBtn.disabled = false;
+            showStatus('PDF created! Preview above. Click "Download PDF" to save.');
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            if (!pdfBlobUrl) return;
+            const link = document.createElement('a');
+            link.href = pdfBlobUrl;
+            const ts = new Date().toISOString().slice(0,10).replace(/-/g,'');
+            link.download = 'falcon-dashboard-' + ts + '.pdf';
+            link.click();
+            showStatus('PDF downloaded!');
+        });
+
+        resetBtn.addEventListener('click', () => {
+            currentImage = null;
+            if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); pdfBlobUrl = null; }
+            fileInput.value = '';
+            imagePreview.src = '';
+            pdfPreview.src = '';
+            previewSection.classList.remove('active');
+            pdfPreviewSection.classList.remove('active');
+            convertBtn.disabled = true;
+            downloadBtn.disabled = true;
+            status.textContent = '';
+        });
+
+        function showStatus(message, isError = false) {
+            status.textContent = message;
+            status.className = 'status' + (isError ? ' error' : '');
+        }
+    <\\/script>
+</body>
+</html>`;
+
+        // Open in new tab using blob URL
+        const blob = new Blob([html], {type: 'text/html'});
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+    }
+    </script>
+    """, height=70)
+
+    st.caption("💡 Opens in a new browser tab")
+
+    if st.button("✖️ Close", key="close_capture_modal", use_container_width=True):
+        st.session_state.show_capture_modal = False
+        st.rerun()
+
+
+# ============================================
 # MAIN DASHBOARD FUNCTION
 # ============================================
 
@@ -537,7 +903,25 @@ def falcon_dashboard_pdf_layout():
 
         st.markdown("---")
         st.info("💡 This dashboard uses the exact same visualization logic as the Main Dashboard Report with PDF styling.")
-        st.info("📸 Use browser extension 'GoFullPage' for full-page PDF capture")
+
+        # ============================
+        # SCREEN CAPTURE TO PDF FEATURE
+        # ============================
+        st.markdown("### 📸 Screen Capture to PDF")
+        st.markdown("Capture the full dashboard as a single-page PDF")
+
+        # Initialize session state for capture modal
+        if 'show_capture_modal' not in st.session_state:
+            st.session_state.show_capture_modal = False
+
+        if st.button("📷 Capture Full Page to PDF", type="primary", use_container_width=True):
+            st.session_state.show_capture_modal = True
+
+        st.caption("💡 This captures the entire dashboard and converts it to a single-page PDF")
+
+        # Show popup launcher in sidebar when activated
+        if st.session_state.get('show_capture_modal', False):
+            render_capture_modal()
 
     # Dashboard Title
     st.markdown(f"""
