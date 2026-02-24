@@ -940,6 +940,7 @@ def falcon_dashboard_pdf_layout():
     detection_data = st.session_state.get('detection_analysis_results', {})
     time_data = st.session_state.get('time_analysis_results', {})
     ticket_data = st.session_state.get('ticket_lifecycle_results', {})
+    quarantine_data = st.session_state.get('quarantine_analysis_results', {})
 
     # Extract months dynamically from data
     months = extract_months_from_data(host_data, detection_data, time_data)
@@ -964,6 +965,19 @@ def falcon_dashboard_pdf_layout():
         include_ticket_lifecycle = st.checkbox("Ticket Lifecycle Analysis", value=False, help="Include ticket status trend analysis", disabled=not ticket_data)
         include_host_analysis = st.checkbox("Host Security Analysis", value=True, help="Include host security metrics")
         include_detection_analysis = st.checkbox("Detection and Severity Analysis", value=True, help="Include detection and severity trends")
+
+        # Sub-option for quarantine analysis (indented under Detection and Severity)
+        include_quarantine_analysis = False
+        if include_detection_analysis:
+            include_quarantine_analysis = st.checkbox(
+                "    ↳ Quarantined File Summary",
+                value=False,
+                help="Include quarantine file monthly trend in Detection section",
+                disabled=not quarantine_data
+            )
+            if not quarantine_data and include_detection_analysis:
+                st.caption("        💡 Quarantine analysis disabled (no quarantine data)")
+
         include_time_analysis = st.checkbox("Time-Based Analysis", value=True, help="Include time-based detection patterns")
         include_executive_summary = st.checkbox("Executive Summary Report", value=False, help="Include professional executive summary with key findings and recommendations")
 
@@ -1594,12 +1608,107 @@ def falcon_dashboard_pdf_layout():
                 use_monthly_colors=True
             )
 
-        # C.5 and C.6 side by side
+        # ============================
+        # QUARANTINE FILE ANALYSIS (OPTIONAL SUB-SECTION)
+        # ============================
+        if include_quarantine_analysis and quarantine_data and 'monthly_counts' in quarantine_data:
+            st.markdown(f'<div class="chart-title">{section_letter}.5. Quarantined File Trend Across {month_text}</div>', unsafe_allow_html=True)
+
+            quarantine_monthly_df = quarantine_data['monthly_counts'].copy()
+
+            # Create bar chart for quarantine monthly trend
+            create_chart_with_pivot_logic(
+                quarantine_monthly_df,
+                rows=['Month Name'],
+                columns=[],
+                values=['Count'],
+                chart_type='Bar Chart',
+                height=240,
+                analysis_key='quarantine_monthly_trend',
+                use_monthly_colors=True
+            )
+
+            # Add detailed table with file names, counts per month, and hostnames
+            st.markdown(f'<div class="chart-title">{section_letter}.6. Quarantined Files Details (File Name, Month, Count, Affected Hosts)</div>', unsafe_allow_html=True)
+
+            if 'raw_data' in quarantine_data:
+                # Use raw data to get month information per file
+                quarantine_raw_df = quarantine_data['raw_data'].copy()
+
+                # Create detailed breakdown by file and month
+                file_month_summary = quarantine_raw_df.groupby(['File Name', 'Month Name']).agg({
+                    'Hostname': 'nunique',
+                    'Date of Quarantine': 'count'
+                }).reset_index()
+                file_month_summary.columns = ['File Name', 'Month', 'Affected Hosts', 'Quarantine Count']
+
+                # Get hostname lists per file+month combination
+                hostname_lists = []
+                for _, row in file_month_summary.iterrows():
+                    file_name = row['File Name']
+                    month = row['Month']
+                    hosts = quarantine_raw_df[(quarantine_raw_df['File Name'] == file_name) &
+                                             (quarantine_raw_df['Month Name'] == month)]['Hostname'].unique()
+                    # Show first 5 hosts
+                    host_list = ', '.join(hosts[:5])
+                    if len(hosts) > 5:
+                        host_list += f' (+{len(hosts) - 5} more)'
+                    hostname_lists.append(host_list)
+
+                file_month_summary['Hostname(s)'] = hostname_lists
+
+                # Sort by quarantine count descending
+                file_month_summary = file_month_summary.sort_values('Quarantine Count', ascending=False)
+
+                # Prepare the table display
+                if not file_month_summary.empty:
+                    # Create a styled table
+                    table_html = '<table style="width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 10px; background: white; border: 2px solid #d0d0d0;">'
+
+                    # Table header
+                    table_html += '<thead><tr style="background-color: #1f4e5f; color: white;">'
+                    table_html += '<th style="border: 1px solid #d0d0d0; padding: 8px; text-align: left;">File Name</th>'
+                    table_html += '<th style="border: 1px solid #d0d0d0; padding: 8px; text-align: center;">Month</th>'
+                    table_html += '<th style="border: 1px solid #d0d0d0; padding: 8px; text-align: center;">Quarantine Count</th>'
+                    table_html += '<th style="border: 1px solid #d0d0d0; padding: 8px; text-align: center;">Affected Hosts</th>'
+                    table_html += '<th style="border: 1px solid #d0d0d0; padding: 8px; text-align: left;">Hostname(s)</th>'
+                    table_html += '</tr></thead><tbody>'
+
+                    # Table rows - show top 15 to cover multiple months
+                    for idx, row in file_month_summary.head(15).iterrows():
+                        # Alternate row colors
+                        bg_color = '#f9f9f9' if idx % 2 == 0 else '#ffffff'
+                        table_html += f'<tr style="background-color: {bg_color};">'
+                        table_html += f'<td style="border: 1px solid #d0d0d0; padding: 8px; font-weight: bold;">{row["File Name"]}</td>'
+                        table_html += f'<td style="border: 1px solid #d0d0d0; padding: 8px; text-align: center; font-size: 9px;">{row["Month"]}</td>'
+                        table_html += f'<td style="border: 1px solid #d0d0d0; padding: 8px; text-align: center;">{row["Quarantine Count"]}</td>'
+                        table_html += f'<td style="border: 1px solid #d0d0d0; padding: 8px; text-align: center;">{row["Affected Hosts"]}</td>'
+                        table_html += f'<td style="border: 1px solid #d0d0d0; padding: 8px; font-size: 9px;">{row["Hostname(s)"]}</td>'
+                        table_html += '</tr>'
+
+                    table_html += '</tbody></table>'
+                    st.markdown(table_html, unsafe_allow_html=True)
+
+                    # Show total count below table
+                    total_quarantined = quarantine_data.get('overview', {}).get('total_quarantined', 0)
+                    unique_files = quarantine_data.get('overview', {}).get('unique_files', 0)
+                    st.markdown(f'<div style="font-size: 10px; color: #666; margin-top: 8px; text-align: center;">Total: {total_quarantined} files quarantined | {unique_files} unique files | Showing top 15 by frequency</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<div style="font-size: 11px; color: #999; padding: 15px; text-align: center; background: white; border: 2px solid #d0d0d0; border-radius: 5px;">No quarantine file details available</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div style="font-size: 11px; color: #999; padding: 15px; text-align: center; background: white; border: 2px solid #d0d0d0; border-radius: 5px;">No quarantine file details available</div>', unsafe_allow_html=True)
+
+        # Dynamic numbering for Tactics and Techniques
+        # If quarantine analysis is included: C.7 and C.8
+        # If quarantine analysis is NOT included: C.5 and C.6
+        tactics_num = 7 if (include_quarantine_analysis and quarantine_data) else 5
+        technique_num = 8 if (include_quarantine_analysis and quarantine_data) else 6
+
         col1, col2 = st.columns(2)
 
         with col1:
             # Tactics (area chart)
-            st.markdown(f'<div class="chart-title">{section_letter}.5. Tactics by Severity Across {month_text} Trends</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="chart-title">{section_letter}.{tactics_num}. Tactics by Severity Across {month_text} Trends</div>', unsafe_allow_html=True)
             if 'tactics_by_severity' in detection_data:
                 create_chart_with_pivot_logic(
                     detection_data['tactics_by_severity'],
@@ -1615,7 +1724,7 @@ def falcon_dashboard_pdf_layout():
 
         with col2:
             # Technique (area chart)
-            st.markdown(f'<div class="chart-title">{section_letter}.6. Technique by Severity Across {month_text} Trends</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="chart-title">{section_letter}.{technique_num}. Technique by Severity Across {month_text} Trends</div>', unsafe_allow_html=True)
             if 'technique_by_severity' in detection_data:
                 # Pre-sort data to put Adware/PUP first
                 technique_df = detection_data['technique_by_severity'].copy()

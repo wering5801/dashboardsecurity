@@ -1,0 +1,162 @@
+[
+  {
+    "Date of Quarantine": "2026-02-12T07:12:55Z",
+    "File Name": "play1.exe",
+    "Hostname": "izami pc",
+    "Agent ID": "d26758",
+    "User": "ariff",
+    "Status": "quarantined"
+  },
+  {
+    "Date of Quarantine": "2026-02-11T08:51:36Z",
+    "File Name": "webcampro.exe",
+    "Hostname": "fredo laptop",
+    "Agent ID": "fddf453",
+    "User": "fredos",
+    "Status": "quarantined"
+  },
+  {
+    "Date of Quarantine": "2026-02-10T05:14:36Z",
+    "File Name": "ZIPX.exe",
+    "Hostname": "Rahul PC1",
+    "Agent ID": "ge2430",
+    "User": "Rahuls",
+    "Status": "quarantined"
+  },
+  {
+    "Date of Quarantine": "2026-01-19T22:09:57Z",
+    "File Name": "svhost.exe",
+    "Hostname": "Bin Bong Mac",
+    "Agent ID": "386562s",
+    "User": "Bin Bongs",
+    "Status": "purged"
+  },
+  {
+    "Date of Quarantine": "2026-02-15T14:23:12Z",
+    "File Name": "play1.exe",
+    "Hostname": "fredo laptop",
+    "Agent ID": "fddf453",
+    "User": "fredos",
+    "Status": "quarantined"
+  },
+  {
+    "Date of Quarantine": "2026-02-18T09:35:47Z",
+    "File Name": "malware.exe",
+    "Hostname": "izami pc",
+    "Agent ID": "d26758",
+    "User": "ariff",
+    "Status": "quarantined"
+  },
+  {
+    "Date of Quarantine": "2026-01-25T16:42:03Z",
+    "File Name": "trojan.dll",
+    "Hostname": "Rahul PC1",
+    "Agent ID": "ge2430",
+    "User": "Rahuls",
+    "Status": "purged"
+  },
+  {
+    "Date of Quarantine": "2026-02-20T11:18:29Z",
+    "File Name": "ransomware.exe",
+    "Hostname": "DESKTOP-ABC123",
+    "Agent ID": "h47291",
+    "User": "admin",
+    "Status": "quarantined"
+  },
+  {
+    "Date of Quarantine": "2026-02-22T08:05:16Z",
+    "File Name": "keylogger.exe",
+    "Hostname": "LAPTOP-XYZ789",
+    "Agent ID": "i58392",
+    "User": "john.doe",
+    "Status": "quarantined"
+  },
+  {
+    "Date of Quarantine": "2026-01-30T13:27:44Z",
+    "File Name": "cryptominer.exe",
+    "Hostname": "WORKSTATION-001",
+    "Agent ID": "j69483",
+    "User": "jane.smith",
+    "Status": "purged"
+  },
+  {
+    "Date of Quarantine": "2026-02-05T17:53:21Z",
+    "File Name": "backdoor.exe",
+    "Hostname": "Bin Bong Mac",
+    "Agent ID": "386562s",
+    "User": "Bin Bongs",
+    "Status": "quarantined"
+  },
+  {
+    "Date of Quarantine": "2026-02-08T10:14:38Z",
+    "File Name": "spyware.dll",
+    "Hostname": "izami pc",
+    "Agent ID": "d26758",
+    "User": "ariff",
+    "Status": "quarantined"
+  },
+  {
+    "Date of Quarantine": "2026-01-22T15:39:52Z",
+    "File Name": "rootkit.sys",
+    "Hostname": "SERVER-DMZ",
+    "Agent ID": "k70594",
+    "User": "security_team",
+    "Status": "purged"
+  },
+  {
+    "Date of Quarantine": "2026-02-14T12:47:09Z",
+    "File Name": "webcampro.exe",
+    "Hostname": "DESKTOP-ABC123",
+    "Agent ID": "h47291",
+    "User": "admin",
+    "Status": "quarantined"
+  },
+  {
+    "Date of Quarantine": "2026-02-17T09:21:33Z",
+    "File Name": "ZIPX.exe",
+    "Hostname": "LAPTOP-XYZ789",
+    "Agent ID": "i58392",
+    "User": "john.doe",
+    "Status": "quarantined"
+  },
+  {
+    "Date of Quarantine": "2026-02-23T14:56:18Z",
+    "File Name": "play1.exe",
+    "Hostname": "izami pc",
+    "Agent ID": "d26758",
+    "User": "ariff",
+    "Status": "quarantined"
+  },
+  {
+    "Date of Quarantine": "2026-01-28T11:32:47Z",
+    "File Name": "malware.exe",
+    "Hostname": "Rahul PC1",
+    "Agent ID": "ge2430",
+    "User": "Rahuls",
+    "Status": "purged"
+  },
+  {
+    "Date of Quarantine": "2026-02-19T16:08:54Z",
+    "File Name": "trojan.dll",
+    "Hostname": "WORKSTATION-001",
+    "Agent ID": "j69483",
+    "User": "jane.smith",
+    "Status": "quarantined"
+  },
+  {
+    "Date of Quarantine": "2026-02-21T13:44:26Z",
+    "File Name": "ransomware.exe",
+    "Hostname": "fredo laptop",
+    "Agent ID": "fddf453",
+    "User": "fredos",
+    "Status": "quarantined"
+  },
+  {
+    "Date of Quarantine": "2026-02-24T10:17:39Z",
+    "File Name": "keylogger.exe",
+    "Hostname": "Bin Bong Mac",
+    "Agent ID": "386562s",
+    "User": "Bin Bongs",
+    "Status": "quarantined"
+  }
+]

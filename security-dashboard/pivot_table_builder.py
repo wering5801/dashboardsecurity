@@ -75,6 +75,8 @@ def pivot_table_builder_dashboard():
         available_categories = []
         if 'ticket_lifecycle_results' in st.session_state:
             available_categories.append("Ticket Lifecycle Analysis")
+        if 'quarantine_analysis_results' in st.session_state:
+            available_categories.append("Quarantine File Analysis")
         if 'host_analysis_results' in st.session_state:
             available_categories.append("Host Analysis")
         if 'detection_analysis_results' in st.session_state:
@@ -91,6 +93,7 @@ def pivot_table_builder_dashboard():
         # Map category to results
         category_map = {
             "Ticket Lifecycle Analysis": 'ticket_lifecycle_results',
+            "Quarantine File Analysis": 'quarantine_analysis_results',
             "Host Analysis": 'host_analysis_results',
             "Detection & Severity Analysis": 'detection_analysis_results',
             "Time-Based Analysis": 'time_analysis_results'
@@ -104,10 +107,15 @@ def pivot_table_builder_dashboard():
 
         # Get available analysis outputs (excluding 'raw_data', 'raw_data_filtered', and chart_data)
         # Include ticket_summary for A.2 configuration visibility
+        # For quarantine analysis: only include monthly_counts, exclude all other outputs
+        quarantine_exclude = ['overview', 'file_summary', 'host_summary', 'detailed_file_summary',
+                             'detailed_host_summary', 'status_distribution', 'daily_trend']
+
         available_analyses = [k for k in analysis_results.keys()
                             if k not in ['raw_data', 'raw_data_filtered']
                             and not k.startswith('chart_data_')
-                            and not k.startswith('raw_data_')]
+                            and not k.startswith('raw_data_')
+                            and k not in quarantine_exclude]
 
         # Create friendly names
         friendly_names = {}
@@ -131,6 +139,8 @@ def pivot_table_builder_dashboard():
 
         # Add other analysis types
         friendly_names.update({
+            # Quarantine File Analysis - Only Monthly Trend
+            'monthly_counts': 'Quarantine File Trend (Monthly Count)',
             # Host Analysis
             'overview_key_metrics': '1. Overview - KEY METRICS',
             'overview_top_hosts': '2. Overview - TOP HOSTS WITH DETECTIONS',

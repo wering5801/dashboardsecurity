@@ -10,6 +10,8 @@ from detection_severity_generator import generate_detection_severity_analysis
 from time_analysis_generator import generate_time_analysis
 from ticket_lifecycle_generator import generate_ticket_lifecycle_analysis, create_placeholder_ticket_data
 from detection_status_generator import generate_detection_status_analysis
+from quarantine_file_analysis import parse_quarantine_json, generate_quarantine_analysis, validate_quarantine_json
+import json
 
 # Dummy data generation function removed - no longer needed
 
@@ -420,6 +422,142 @@ def falcon_generator_dashboard():
             st.session_state['ticket_config_per_month'] = ticket_config_per_month
 
     # ============================================
+    # QUARANTINE FILE ANALYSIS (OPTIONAL)
+    # ============================================
+    st.markdown("---")
+    st.header("🔒 Quarantined File Analysis (Optional)")
+    st.markdown("""
+    **Optional Section:** Upload Falcon quarantine JSON data to track and analyze quarantined files.
+
+    **This creates:**
+    - **Monthly Quarantine Trend**: Bar chart showing files quarantined per month
+    - **File Summary**: Most frequently quarantined files with host impact
+    - **Host Summary**: Most affected hosts with detailed file information
+    - **Status Distribution**: Breakdown of quarantine statuses
+    - **Executive Summary**: Auto-generated insights and recommendations
+
+    You can either:
+    - **Upload JSON file** - Falcon quarantine export in JSON format
+    - **Skip this section** if you don't need quarantine analysis
+
+    📥 **Download the sample template below to see the exact format**
+    """)
+
+    use_quarantine_data = st.checkbox("Include Quarantined File Analysis", value=False)
+    quarantine_upload_file = None
+
+    if use_quarantine_data:
+        # Download sample JSON template
+        st.markdown("### 📥 Download Sample JSON Template")
+
+        # Load the sample JSON
+        try:
+            with open('security-dashboard/sample_quarantine_data.json', 'r') as f:
+                sample_json_content = f.read()
+
+            st.download_button(
+                label="📥 Download Sample JSON Template",
+                data=sample_json_content,
+                file_name="quarantine_template.json",
+                mime="application/json",
+                help="Download this template to see the exact JSON format required"
+            )
+            st.caption("💡 This template shows the exact format required for quarantine analysis")
+        except FileNotFoundError:
+            st.warning("Sample JSON file not found.")
+
+        # Show format guide
+        with st.expander("📖 View JSON Format Requirements", expanded=False):
+            st.markdown("""
+            **Required Fields:**
+            - `Date of Quarantine`: ISO timestamp (e.g., "2026-02-12T07:12:55Z")
+            - `File Name`: Name of the quarantined file
+            - `Hostname`: Affected host/computer name
+            - `Agent ID`: Falcon agent identifier
+            - `User`: Username associated with the quarantine
+            - `Status`: Quarantine status (quarantined, purged, pending)
+
+            **Sample JSON Format:**
+            ```json
+            [
+              {
+                "Date of Quarantine": "2026-02-12T07:12:55Z",
+                "File Name": "malware.exe",
+                "Hostname": "DESKTOP-001",
+                "Agent ID": "d26758",
+                "User": "john.doe",
+                "Status": "quarantined"
+              },
+              {
+                "Date of Quarantine": "2026-02-11T08:51:36Z",
+                "File Name": "trojan.dll",
+                "Hostname": "LAPTOP-002",
+                "Agent ID": "fddf453",
+                "User": "jane.smith",
+                "Status": "quarantined"
+              }
+            ]
+            ```
+
+            **Output:**
+            - Monthly trend charts showing quarantine activity
+            - Detailed summaries of most quarantined files
+            - Host impact analysis
+            - CSV export capabilities
+            """)
+
+        st.markdown("#### 📁 Upload Quarantine JSON File")
+        st.info("💡 Upload a single JSON file containing quarantine data for all months.")
+
+        quarantine_file = st.file_uploader(
+            "Upload Quarantine Data (JSON)",
+            type=['json'],
+            key="quarantine_json_file",
+            help="Upload Falcon quarantine export in JSON format"
+        )
+
+        if quarantine_file:
+            try:
+                # Read JSON file
+                json_data = json.load(quarantine_file)
+
+                # Validate JSON structure
+                validation = validate_quarantine_json(json_data)
+
+                if not validation['is_valid']:
+                    st.error("❌ Invalid JSON file!")
+                    for error in validation['errors']:
+                        st.error(f"• {error}")
+                else:
+                    st.success(f"✅ Quarantine data uploaded! ({validation['record_count']} records)")
+
+                    if validation['warnings']:
+                        for warning in validation['warnings']:
+                            st.warning(f"⚠️ {warning}")
+
+                    # Show preview
+                    try:
+                        preview_df = pd.DataFrame(json_data if isinstance(json_data, list) else [json_data])
+                        st.caption("Preview (first 5 records):")
+                        st.dataframe(preview_df.head(), use_container_width=True)
+                    except:
+                        pass
+
+                    # Store in session state
+                    st.session_state['quarantine_json_data'] = json_data
+                    quarantine_upload_file = True
+
+            except json.JSONDecodeError as e:
+                st.error(f"❌ Invalid JSON format: {str(e)}")
+                quarantine_upload_file = None
+            except Exception as e:
+                st.error(f"❌ Error reading JSON file: {str(e)}")
+                quarantine_upload_file = None
+        else:
+            st.warning("⚠️ No JSON file uploaded")
+            quarantine_upload_file = None
+
+    # ============================================
     # DETECTION STATUS DATA (STATUS + SEVERITY) - HIDDEN
     # This functionality is now merged into Ticket Lifecycle above
     # ============================================
@@ -614,6 +752,35 @@ def falcon_generator_dashboard():
                         with status_container:
                             st.error(f"Error generating ticket lifecycle analysis: {error_msg}")
                             st.warning("Ticket analysis failed, but other templates are still available.")
+
+                # ============================================
+                # Generate Quarantine File Analysis (if enabled)
+                # ============================================
+                if use_quarantine_data and quarantine_upload_file:
+                    try:
+                        # Get quarantine JSON data from session state
+                        quarantine_json_data = st.session_state.get('quarantine_json_data')
+
+                        if quarantine_json_data:
+                            with status_container:
+                                st.info(f"🔒 Processing quarantine data...")
+
+                            # Parse JSON into DataFrame
+                            quarantine_df = parse_quarantine_json(quarantine_json_data)
+                            with status_container:
+                                st.info(f"📊 Parsed quarantine data: {len(quarantine_df)} records")
+
+                            # Generate quarantine analysis
+                            quarantine_results = generate_quarantine_analysis(quarantine_df)
+                            st.session_state['quarantine_analysis_results'] = quarantine_results
+                            with status_container:
+                                st.success(f"✅ Quarantine File Analysis: {len(quarantine_results)} analysis outputs generated")
+
+                    except Exception as e:
+                        error_msg = str(e).encode('ascii', 'replace').decode('ascii')
+                        with status_container:
+                            st.error(f"Error generating quarantine analysis: {error_msg}")
+                            st.warning("Quarantine analysis failed, but other templates are still available.")
 
                 # ============================================
                 # Generate Detection Status Analysis (if enabled)
