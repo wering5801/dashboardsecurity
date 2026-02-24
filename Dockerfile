@@ -33,10 +33,13 @@ EXPOSE 8080
 HEALTHCHECK CMD curl --fail http://localhost:8080/_stcore/health || exit 1
 
 # Run the application
+# Note: enableXsrfProtection=false is required for Cloud Run (reverse proxy)
+# XSRF tokens fail behind GCP's load balancer causing 400 on file uploads
+# Cloud Run handles security at infrastructure level via IAM + HTTPS
 CMD streamlit run security-dashboard/app.py \
     --server.port=$PORT \
     --server.address=0.0.0.0 \
     --server.headless=true \
-    --server.enableCORS=false \
-    --server.enableXsrfProtection=true \
+    --server.enableCORS=true \
+    --server.enableXsrfProtection=false \
     --browser.gatherUsageStats=false
