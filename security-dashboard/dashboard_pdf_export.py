@@ -1649,17 +1649,27 @@ def falcon_dashboard_pdf_layout():
                     marker_color=row['_color'],
                     text=[str(row['Count'])],
                     textposition='outside',
-                    showlegend=False,
+                    showlegend=True,
                     name=row['Month Name']
                 ))
             q_fig.update_layout(
-                xaxis={'categoryorder': 'array', 'categoryarray': quarantine_monthly_df['Month Name'].tolist(), 'title': 'Month Name'},
-                yaxis={'title': 'Count'},
+                xaxis={'categoryorder': 'array', 'categoryarray': quarantine_monthly_df['Month Name'].tolist(), 'title': 'Month Name',
+                       'titlefont': dict(family='Arial', size=11), 'tickfont': dict(family='Arial', size=10)},
+                yaxis={'title': 'Count', 'titlefont': dict(family='Arial', size=11), 'tickfont': dict(family='Arial', size=10)},
                 height=240,
-                margin=dict(t=20, b=40, l=40, r=20),
+                margin=dict(t=20, b=40, l=40, r=120),
                 plot_bgcolor='white',
                 paper_bgcolor='white',
-                bargap=0.3
+                bargap=0.3,
+                legend=dict(
+                    font=dict(family='Arial', size=10, color='#333333'),
+                    orientation='v',
+                    x=1.02,
+                    y=0.5,
+                    xanchor='left',
+                    yanchor='middle',
+                    itemsizing='constant'
+                )
             )
             st.plotly_chart(q_fig, use_container_width=True, config={'displayModeBar': False})
 
@@ -1704,42 +1714,76 @@ def falcon_dashboard_pdf_layout():
                         else:
                             card_data[file_name][month] = None
 
-                # Render card layout
-                st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+                # Render per-file horizontal cards
+                # Each file = one card: dark left panel (name + total) + right panel (month badges, only where data exists)
+                st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
                 card_html = '<div style="display: flex; flex-direction: column; gap: 6px; margin: 8px 0;">'
 
-                # Header row — metric label + one column per month
-                card_html += '<div style="display: flex; gap: 6px;">'
-                card_html += '<div style="flex: 0 0 200px; padding: 10px; font-weight: bold; color: #333; font-size: 12px; background: #f8f9fa; border-radius: 8px; display: flex; align-items: center;">File Name</div>'
-                for month in all_q_months:
-                    card_html += f'<div style="flex: 1; padding: 10px; text-align: center; font-weight: bold; background: {month_colors[month]}; color: black; font-size: 11px; border-radius: 8px;">{month}</div>'
-                card_html += '</div>'
-
-                # One row per file
                 for file_name in all_files:
-                    card_html += '<div style="display: flex; gap: 6px;">'
-                    card_html += f'<div style="flex: 0 0 200px; padding: 10px 8px; font-size: 10px; font-weight: 600; color: #333; background: #f8f9fa; border-radius: 8px; display: flex; align-items: center; word-break: break-all;">{file_name}</div>'
+                    file_total = file_totals[file_totals['File Name'] == file_name]['Total'].iloc[0]
+                    card_html += (
+                        '<div style="display: flex; border-radius: 8px; overflow: hidden; '
+                        'border: 1px solid #d0d0d0; min-height: 70px;">'
+                    )
+                    # Left panel: file name + total
+                    card_html += (
+                        f'<div style="flex: 0 0 180px; background: {SECTION_HEADER_COLOR}; padding: 10px 12px; '
+                        f'display: flex; flex-direction: column; justify-content: center;">'
+                        f'<span style="color: white; font-size: 10px; font-weight: bold; '
+                        f'word-break: break-all; line-height: 1.3;">{file_name}</span>'
+                        f'<span style="color: #a8d0de; font-size: 9px; margin-top: 5px;">Total: {file_total} quarantine(s)</span>'
+                        f'</div>'
+                    )
+                    # Right panel: only months with data, shown as compact badges
+                    card_html += '<div style="flex: 1; padding: 8px 10px; background: #ffffff; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">'
+                    has_any = False
                     for month in all_q_months:
                         cell = card_data[file_name][month]
-                        color = month_colors[month]
                         if cell:
+                            has_any = True
+                            color = month_colors[month]
                             card_html += (
-                                f'<div style="flex: 1; padding: 10px 8px; background: {color}; border-radius: 8px; text-align: center;">'
-                                f'<span style="font-size: 24px; font-weight: bold; color: black; display: block;">{cell["count"]}</span>'
-                                f'<span style="font-size: 8px; color: #333; display: block; margin-top: 3px; word-break: break-all;">{cell["hosts"]}</span>'
+                                f'<div style="background: {color}; border-radius: 6px; padding: 8px 12px; '
+                                f'text-align: center; min-width: 110px;">'
+                                f'<div style="font-size: 8px; color: rgba(0,0,0,0.7); font-weight: bold; margin-bottom: 2px;">{month}</div>'
+                                f'<div style="font-size: 22px; font-weight: bold; color: #000; line-height: 1;">{cell["count"]}</div>'
+                                f'<div style="font-size: 7.5px; color: rgba(0,0,0,0.65); margin-top: 3px; word-break: break-all;">{cell["hosts"]}</div>'
                                 f'</div>'
                             )
-                        else:
-                            card_html += f'<div style="flex: 1; padding: 10px 8px; background: #f0f0f0; border-radius: 8px; text-align: center; display: flex; align-items: center; justify-content: center;"><span style="font-size: 10px; color: #bbb;">—</span></div>'
-                    card_html += '</div>'
+                    if not has_any:
+                        card_html += '<span style="font-size: 10px; color: #bbb; font-style: italic;">No data</span>'
+                    card_html += '</div>'  # close right panel
+                    card_html += '</div>'  # close card
 
                 card_html += '</div>'
                 st.markdown(card_html, unsafe_allow_html=True)
 
-                # Footer
+                # Footer — styled info cards matching Pending Request IDs style
                 total_quarantined = quarantine_data.get('overview', {}).get('total_quarantined', 0)
-                unique_files = quarantine_data.get('overview', {}).get('unique_files', 0)
-                st.markdown(f'<div style="font-size: 10px; color: #666; margin-top: 8px; text-align: center;">Total: {total_quarantined} files quarantined across {len(all_q_months)} month(s) | {unique_files} unique files</div>', unsafe_allow_html=True)
+                unique_files_count = quarantine_data.get('overview', {}).get('unique_files', 0)
+                num_months = len(all_q_months)
+                st.markdown(f"""
+                    <div style='display: flex; gap: 10px; margin-top: 14px;'>
+                        <div style='flex: 1; background: #f8f9fa; padding: 12px; border-radius: 8px;
+                                    border-left: 4px solid {SECTION_HEADER_COLOR};'>
+                            <strong style='color: #333; font-size: 11px;'>Total Quarantine Events</strong><br>
+                            <span style='font-size: 22px; font-weight: bold; color: {SECTION_HEADER_COLOR};'>{total_quarantined}</span>
+                            <span style='font-size: 10px; color: #666;'> events</span>
+                        </div>
+                        <div style='flex: 1; background: #f8f9fa; padding: 12px; border-radius: 8px;
+                                    border-left: 4px solid {SECTION_HEADER_COLOR};'>
+                            <strong style='color: #333; font-size: 11px;'>Unique Files Detected</strong><br>
+                            <span style='font-size: 22px; font-weight: bold; color: {SECTION_HEADER_COLOR};'>{unique_files_count}</span>
+                            <span style='font-size: 10px; color: #666;'> files</span>
+                        </div>
+                        <div style='flex: 1; background: #f8f9fa; padding: 12px; border-radius: 8px;
+                                    border-left: 4px solid {SECTION_HEADER_COLOR};'>
+                            <strong style='color: #333; font-size: 11px;'>Months Analysed</strong><br>
+                            <span style='font-size: 22px; font-weight: bold; color: {SECTION_HEADER_COLOR};'>{num_months}</span>
+                            <span style='font-size: 10px; color: #666;'> month(s)</span>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
             else:
                 st.markdown('<div style="font-size: 11px; color: #999; padding: 15px; text-align: center; background: white; border: 2px solid #d0d0d0; border-radius: 5px;">No quarantine file details available</div>', unsafe_allow_html=True)
 
