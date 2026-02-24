@@ -1616,85 +1616,130 @@ def falcon_dashboard_pdf_layout():
 
             quarantine_monthly_df = quarantine_data['monthly_counts'].copy()
 
-            # Create bar chart for quarantine monthly trend
-            create_chart_with_pivot_logic(
-                quarantine_monthly_df,
-                rows=['Month Name'],
-                columns=[],
-                values=['Count'],
-                chart_type='Bar Chart',
-                height=240,
-                analysis_key='quarantine_monthly_trend',
-                use_monthly_colors=True
-            )
+            # Sort chronologically by year then month number
+            month_name_to_num = {
+                'January': 1, 'February': 2, 'March': 3, 'April': 4,
+                'May': 5, 'June': 6, 'July': 7, 'August': 8,
+                'September': 9, 'October': 10, 'November': 11, 'December': 12
+            }
 
-            # Add detailed table with file names, counts per month, and hostnames
-            st.markdown(f'<div class="chart-title">{section_letter}.6. Quarantined Files Details (File Name, Month, Count, Affected Hosts)</div>', unsafe_allow_html=True)
+            def quarantine_month_sort_key(month_str):
+                import re as _re
+                year_match = _re.search(r'(\d{4})', str(month_str))
+                year = int(year_match.group(1)) if year_match else 2000
+                month_num = next((num for name, num in month_name_to_num.items() if name in str(month_str)), 0)
+                return (year, month_num)
+
+            quarantine_monthly_df['_sort'] = quarantine_monthly_df['Month Name'].apply(quarantine_month_sort_key)
+            quarantine_monthly_df = quarantine_monthly_df.sort_values('_sort').drop(columns=['_sort']).reset_index(drop=True)
+
+            # Assign monthly colors in chronological order (Green → Blue → Gold)
+            month_color_keys = ['month_1', 'month_2', 'month_3']
+            quarantine_monthly_df['_color'] = [
+                MONTHLY_COLORS[month_color_keys[i]] if i < 3 else MONTHLY_COLORS['month_3']
+                for i in range(len(quarantine_monthly_df))
+            ]
+
+            # Build bar chart manually to respect chronological order and monthly colors
+            q_fig = go.Figure()
+            for i, row in quarantine_monthly_df.iterrows():
+                q_fig.add_trace(go.Bar(
+                    x=[row['Month Name']],
+                    y=[row['Count']],
+                    marker_color=row['_color'],
+                    text=[str(row['Count'])],
+                    textposition='outside',
+                    showlegend=False,
+                    name=row['Month Name']
+                ))
+            q_fig.update_layout(
+                xaxis={'categoryorder': 'array', 'categoryarray': quarantine_monthly_df['Month Name'].tolist(), 'title': 'Month Name'},
+                yaxis={'title': 'Count'},
+                height=240,
+                margin=dict(t=20, b=40, l=40, r=20),
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                bargap=0.3
+            )
+            st.plotly_chart(q_fig, use_container_width=True, config={'displayModeBar': False})
+
+            # ============================
+            # C.6: Quarantined Files Details - Card Layout (like Ticket Detection Summary)
+            # ============================
+            st.markdown(f'<div class="chart-title">{section_letter}.6. Quarantined Files Details</div>', unsafe_allow_html=True)
 
             if 'raw_data' in quarantine_data:
-                # Use raw data to get month information per file
                 quarantine_raw_df = quarantine_data['raw_data'].copy()
 
-                # Create detailed breakdown by file and month
-                file_month_summary = quarantine_raw_df.groupby(['File Name', 'Month Name']).agg({
-                    'Hostname': 'nunique',
-                    'Date of Quarantine': 'count'
-                }).reset_index()
-                file_month_summary.columns = ['File Name', 'Month', 'Affected Hosts', 'Quarantine Count']
+                # Get sorted months chronologically
+                all_q_months = quarantine_monthly_df['Month Name'].tolist()
 
-                # Get hostname lists per file+month combination
-                hostname_lists = []
-                for _, row in file_month_summary.iterrows():
-                    file_name = row['File Name']
-                    month = row['Month']
-                    hosts = quarantine_raw_df[(quarantine_raw_df['File Name'] == file_name) &
-                                             (quarantine_raw_df['Month Name'] == month)]['Hostname'].unique()
-                    # Show first 5 hosts
-                    host_list = ', '.join(hosts[:5])
-                    if len(hosts) > 5:
-                        host_list += f' (+{len(hosts) - 5} more)'
-                    hostname_lists.append(host_list)
+                # Assign color per month (same as chart)
+                month_colors = {
+                    m: MONTHLY_COLORS[month_color_keys[i]] if i < 3 else MONTHLY_COLORS['month_3']
+                    for i, m in enumerate(all_q_months)
+                }
 
-                file_month_summary['Hostname(s)'] = hostname_lists
+                # Get all unique files sorted by total quarantine count desc
+                file_totals = quarantine_raw_df.groupby('File Name').size().reset_index(name='Total')
+                file_totals = file_totals.sort_values('Total', ascending=False)
+                all_files = file_totals['File Name'].tolist()
 
-                # Sort by quarantine count descending
-                file_month_summary = file_month_summary.sort_values('Quarantine Count', ascending=False)
+                # Build per-file per-month data
+                card_data = {}
+                for file_name in all_files:
+                    card_data[file_name] = {}
+                    for month in all_q_months:
+                        subset = quarantine_raw_df[
+                            (quarantine_raw_df['File Name'] == file_name) &
+                            (quarantine_raw_df['Month Name'] == month)
+                        ]
+                        if not subset.empty:
+                            count = len(subset)
+                            hosts = subset['Hostname'].unique()
+                            host_str = ', '.join(hosts[:4])
+                            if len(hosts) > 4:
+                                host_str += f' (+{len(hosts)-4})'
+                            card_data[file_name][month] = {'count': count, 'hosts': host_str}
+                        else:
+                            card_data[file_name][month] = None
 
-                # Prepare the table display
-                if not file_month_summary.empty:
-                    # Create a styled table
-                    table_html = '<table style="width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 10px; background: white; border: 2px solid #d0d0d0;">'
+                # Render card layout
+                st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+                card_html = '<div style="display: flex; flex-direction: column; gap: 6px; margin: 8px 0;">'
 
-                    # Table header
-                    table_html += '<thead><tr style="background-color: #1f4e5f; color: white;">'
-                    table_html += '<th style="border: 1px solid #d0d0d0; padding: 8px; text-align: left;">File Name</th>'
-                    table_html += '<th style="border: 1px solid #d0d0d0; padding: 8px; text-align: center;">Month</th>'
-                    table_html += '<th style="border: 1px solid #d0d0d0; padding: 8px; text-align: center;">Quarantine Count</th>'
-                    table_html += '<th style="border: 1px solid #d0d0d0; padding: 8px; text-align: center;">Affected Hosts</th>'
-                    table_html += '<th style="border: 1px solid #d0d0d0; padding: 8px; text-align: left;">Hostname(s)</th>'
-                    table_html += '</tr></thead><tbody>'
+                # Header row — metric label + one column per month
+                card_html += '<div style="display: flex; gap: 6px;">'
+                card_html += '<div style="flex: 0 0 200px; padding: 10px; font-weight: bold; color: #333; font-size: 12px; background: #f8f9fa; border-radius: 8px; display: flex; align-items: center;">File Name</div>'
+                for month in all_q_months:
+                    card_html += f'<div style="flex: 1; padding: 10px; text-align: center; font-weight: bold; background: {month_colors[month]}; color: black; font-size: 11px; border-radius: 8px;">{month}</div>'
+                card_html += '</div>'
 
-                    # Table rows - show top 15 to cover multiple months
-                    for idx, row in file_month_summary.head(15).iterrows():
-                        # Alternate row colors
-                        bg_color = '#f9f9f9' if idx % 2 == 0 else '#ffffff'
-                        table_html += f'<tr style="background-color: {bg_color};">'
-                        table_html += f'<td style="border: 1px solid #d0d0d0; padding: 8px; font-weight: bold;">{row["File Name"]}</td>'
-                        table_html += f'<td style="border: 1px solid #d0d0d0; padding: 8px; text-align: center; font-size: 9px;">{row["Month"]}</td>'
-                        table_html += f'<td style="border: 1px solid #d0d0d0; padding: 8px; text-align: center;">{row["Quarantine Count"]}</td>'
-                        table_html += f'<td style="border: 1px solid #d0d0d0; padding: 8px; text-align: center;">{row["Affected Hosts"]}</td>'
-                        table_html += f'<td style="border: 1px solid #d0d0d0; padding: 8px; font-size: 9px;">{row["Hostname(s)"]}</td>'
-                        table_html += '</tr>'
+                # One row per file
+                for file_name in all_files:
+                    card_html += '<div style="display: flex; gap: 6px;">'
+                    card_html += f'<div style="flex: 0 0 200px; padding: 10px 8px; font-size: 10px; font-weight: 600; color: #333; background: #f8f9fa; border-radius: 8px; display: flex; align-items: center; word-break: break-all;">{file_name}</div>'
+                    for month in all_q_months:
+                        cell = card_data[file_name][month]
+                        color = month_colors[month]
+                        if cell:
+                            card_html += (
+                                f'<div style="flex: 1; padding: 10px 8px; background: {color}; border-radius: 8px; text-align: center;">'
+                                f'<span style="font-size: 24px; font-weight: bold; color: black; display: block;">{cell["count"]}</span>'
+                                f'<span style="font-size: 8px; color: #333; display: block; margin-top: 3px; word-break: break-all;">{cell["hosts"]}</span>'
+                                f'</div>'
+                            )
+                        else:
+                            card_html += f'<div style="flex: 1; padding: 10px 8px; background: #f0f0f0; border-radius: 8px; text-align: center; display: flex; align-items: center; justify-content: center;"><span style="font-size: 10px; color: #bbb;">—</span></div>'
+                    card_html += '</div>'
 
-                    table_html += '</tbody></table>'
-                    st.markdown(table_html, unsafe_allow_html=True)
+                card_html += '</div>'
+                st.markdown(card_html, unsafe_allow_html=True)
 
-                    # Show total count below table
-                    total_quarantined = quarantine_data.get('overview', {}).get('total_quarantined', 0)
-                    unique_files = quarantine_data.get('overview', {}).get('unique_files', 0)
-                    st.markdown(f'<div style="font-size: 10px; color: #666; margin-top: 8px; text-align: center;">Total: {total_quarantined} files quarantined | {unique_files} unique files | Showing top 15 by frequency</div>', unsafe_allow_html=True)
-                else:
-                    st.markdown('<div style="font-size: 11px; color: #999; padding: 15px; text-align: center; background: white; border: 2px solid #d0d0d0; border-radius: 5px;">No quarantine file details available</div>', unsafe_allow_html=True)
+                # Footer
+                total_quarantined = quarantine_data.get('overview', {}).get('total_quarantined', 0)
+                unique_files = quarantine_data.get('overview', {}).get('unique_files', 0)
+                st.markdown(f'<div style="font-size: 10px; color: #666; margin-top: 8px; text-align: center;">Total: {total_quarantined} files quarantined across {len(all_q_months)} month(s) | {unique_files} unique files</div>', unsafe_allow_html=True)
             else:
                 st.markdown('<div style="font-size: 11px; color: #999; padding: 15px; text-align: center; background: white; border: 2px solid #d0d0d0; border-radius: 5px;">No quarantine file details available</div>', unsafe_allow_html=True)
 
