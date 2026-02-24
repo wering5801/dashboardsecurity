@@ -541,7 +541,7 @@ def render_capture_modal():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PNG to PDF Converter - Falcon Dashboard</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\\/script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@4.2.0/dist/jspdf.umd.min.js"><\\/script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
