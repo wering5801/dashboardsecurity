@@ -1654,7 +1654,7 @@ def falcon_dashboard_pdf_layout():
                 ))
             q_fig.update_layout(
                 xaxis={'categoryorder': 'array', 'categoryarray': quarantine_monthly_df['Month Name'].tolist(),
-                       'title': dict(text='Month Name', font=dict(family='Arial', size=11)),
+                       'title': None,
                        'tickfont': dict(family='Arial', size=10)},
                 yaxis={'title': dict(text='Count', font=dict(family='Arial', size=11)),
                        'tickfont': dict(family='Arial', size=10)},
@@ -1682,85 +1682,76 @@ def falcon_dashboard_pdf_layout():
 
             if 'raw_data' in quarantine_data:
                 quarantine_raw_df = quarantine_data['raw_data'].copy()
-
-                # Get sorted months chronologically
                 all_q_months = quarantine_monthly_df['Month Name'].tolist()
 
-                # Assign color per month (same as chart)
-                month_colors = {
-                    m: MONTHLY_COLORS[month_color_keys[i]] if i < 3 else MONTHLY_COLORS['month_3']
-                    for i, m in enumerate(all_q_months)
-                }
-
-                # Get all unique files sorted by total quarantine count desc
+                # File totals sorted descending
                 file_totals = quarantine_raw_df.groupby('File Name').size().reset_index(name='Total')
-                file_totals = file_totals.sort_values('Total', ascending=False)
-                all_files = file_totals['File Name'].tolist()
+                file_totals = file_totals.sort_values('Total', ascending=False).reset_index(drop=True)
+                top_files = file_totals.head(10)
 
-                # Build per-file per-month data
-                card_data = {}
-                for file_name in all_files:
-                    card_data[file_name] = {}
-                    for month in all_q_months:
-                        subset = quarantine_raw_df[
-                            (quarantine_raw_df['File Name'] == file_name) &
-                            (quarantine_raw_df['Month Name'] == month)
-                        ]
-                        if not subset.empty:
-                            count = len(subset)
-                            hosts = subset['Hostname'].unique()
-                            host_str = ', '.join(hosts[:4])
-                            if len(hosts) > 4:
-                                host_str += f' (+{len(hosts)-4})'
-                            card_data[file_name][month] = {'count': count, 'hosts': host_str}
-                        else:
-                            card_data[file_name][month] = None
+                # Diverse color palette for pie slices
+                pie_palette = [
+                    '#70AD47', '#5B9BD5', '#FFC000', '#DC143C', '#ED7D31',
+                    '#9B59B6', '#1ABC9C', '#E74C3C', '#3498DB', '#F39C12'
+                ]
+                pie_colors = [pie_palette[i % len(pie_palette)] for i in range(len(top_files))]
 
-                # Render per-file horizontal cards
-                # Each file = one card: dark left panel (name + total) + right panel (month badges, only where data exists)
-                st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
-                card_html = '<div style="display: flex; flex-direction: column; gap: 6px; margin: 8px 0;">'
+                # Pie chart — quarantine share by file name
+                pie_fig = go.Figure(data=[go.Pie(
+                    labels=top_files['File Name'].tolist(),
+                    values=top_files['Total'].tolist(),
+                    marker=dict(colors=pie_colors, line=dict(color='white', width=1.5)),
+                    textinfo='percent',
+                    hovertemplate='<b>%{label}</b><br>Count: %{value}<br>%{percent}<extra></extra>',
+                    hole=0.35,
+                    textfont=dict(family='Arial', size=9)
+                )])
+                pie_fig.update_layout(
+                    height=290,
+                    margin=dict(t=10, b=10, l=10, r=10),
+                    showlegend=False,
+                    paper_bgcolor='white'
+                )
 
-                for file_name in all_files:
-                    file_total = file_totals[file_totals['File Name'] == file_name]['Total'].iloc[0]
-                    card_html += (
-                        '<div style="display: flex; border-radius: 8px; overflow: hidden; '
-                        'border: 1px solid #d0d0d0; min-height: 70px;">'
+                # Build table rows: file name, total count, unique hosts
+                tbl_rows = []
+                for i, row in top_files.iterrows():
+                    fn = row['File Name']
+                    total = row['Total']
+                    hosts = quarantine_raw_df[quarantine_raw_df['File Name'] == fn]['Hostname'].nunique()
+                    tbl_rows.append({'name': fn, 'total': total, 'hosts': hosts, 'color': pie_palette[len(tbl_rows) % len(pie_palette)]})
+
+                # Render pie + table side by side
+                col_pie, col_tbl = st.columns([5, 4])
+                with col_pie:
+                    st.plotly_chart(pie_fig, use_container_width=True, config={'displayModeBar': False})
+                with col_tbl:
+                    tbl_html = (
+                        '<table style="width:100%; border-collapse: collapse; font-size: 10px; margin-top: 8px;">'
+                        '<thead>'
+                        f'<tr style="background: {SECTION_HEADER_COLOR}; color: white;">'
+                        '<th style="padding: 7px 8px; text-align: left; font-weight: bold;">File Name</th>'
+                        '<th style="padding: 7px 8px; text-align: center; font-weight: bold;">Count</th>'
+                        '<th style="padding: 7px 8px; text-align: center; font-weight: bold;">Hosts</th>'
+                        '</tr>'
+                        '</thead><tbody>'
                     )
-                    # Left panel: file name + total
-                    card_html += (
-                        f'<div style="flex: 0 0 180px; background: {SECTION_HEADER_COLOR}; padding: 10px 12px; '
-                        f'display: flex; flex-direction: column; justify-content: center;">'
-                        f'<span style="color: white; font-size: 10px; font-weight: bold; '
-                        f'word-break: break-all; line-height: 1.3;">{file_name}</span>'
-                        f'<span style="color: #a8d0de; font-size: 9px; margin-top: 5px;">Total: {file_total} quarantine(s)</span>'
-                        f'</div>'
-                    )
-                    # Right panel: only months with data, shown as compact badges
-                    card_html += '<div style="flex: 1; padding: 8px 10px; background: #ffffff; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">'
-                    has_any = False
-                    for month in all_q_months:
-                        cell = card_data[file_name][month]
-                        if cell:
-                            has_any = True
-                            color = month_colors[month]
-                            card_html += (
-                                f'<div style="background: {color}; border-radius: 6px; padding: 8px 12px; '
-                                f'text-align: center; min-width: 110px;">'
-                                f'<div style="font-size: 8px; color: rgba(0,0,0,0.7); font-weight: bold; margin-bottom: 2px;">{month}</div>'
-                                f'<div style="font-size: 22px; font-weight: bold; color: #000; line-height: 1;">{cell["count"]}</div>'
-                                f'<div style="font-size: 7.5px; color: rgba(0,0,0,0.65); margin-top: 3px; word-break: break-all;">{cell["hosts"]}</div>'
-                                f'</div>'
-                            )
-                    if not has_any:
-                        card_html += '<span style="font-size: 10px; color: #bbb; font-style: italic;">No data</span>'
-                    card_html += '</div>'  # close right panel
-                    card_html += '</div>'  # close card
+                    for idx, r in enumerate(tbl_rows):
+                        bg = '#f9f9f9' if idx % 2 == 0 else '#ffffff'
+                        dot = r['color']
+                        tbl_html += (
+                            f'<tr style="background: {bg}; border-bottom: 1px solid #e8e8e8;">'
+                            f'<td style="padding: 6px 8px;">'
+                            f'<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:{dot}; margin-right:5px; vertical-align:middle;"></span>'
+                            f'{r["name"]}</td>'
+                            f'<td style="padding: 6px 8px; text-align: center; font-weight: bold;">{r["total"]}</td>'
+                            f'<td style="padding: 6px 8px; text-align: center;">{r["hosts"]}</td>'
+                            f'</tr>'
+                        )
+                    tbl_html += '</tbody></table>'
+                    st.markdown(tbl_html, unsafe_allow_html=True)
 
-                card_html += '</div>'
-                st.markdown(card_html, unsafe_allow_html=True)
-
-                # Footer — styled info cards matching Pending Request IDs style
+                # Footer info cards
                 total_quarantined = quarantine_data.get('overview', {}).get('total_quarantined', 0)
                 unique_files_count = quarantine_data.get('overview', {}).get('unique_files', 0)
                 num_months = len(all_q_months)
