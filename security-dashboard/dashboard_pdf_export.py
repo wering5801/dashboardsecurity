@@ -1653,9 +1653,11 @@ def falcon_dashboard_pdf_layout():
                     name=row['Month Name']
                 ))
             q_fig.update_layout(
-                xaxis={'categoryorder': 'array', 'categoryarray': quarantine_monthly_df['Month Name'].tolist(), 'title': 'Month Name',
-                       'titlefont': dict(family='Arial', size=11), 'tickfont': dict(family='Arial', size=10)},
-                yaxis={'title': 'Count', 'titlefont': dict(family='Arial', size=11), 'tickfont': dict(family='Arial', size=10)},
+                xaxis={'categoryorder': 'array', 'categoryarray': quarantine_monthly_df['Month Name'].tolist(),
+                       'title': dict(text='Month Name', font=dict(family='Arial', size=11)),
+                       'tickfont': dict(family='Arial', size=10)},
+                yaxis={'title': dict(text='Count', font=dict(family='Arial', size=11)),
+                       'tickfont': dict(family='Arial', size=10)},
                 height=240,
                 margin=dict(t=20, b=40, l=40, r=120),
                 plot_bgcolor='white',
