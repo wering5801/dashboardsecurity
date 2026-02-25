@@ -1652,14 +1652,16 @@ def falcon_dashboard_pdf_layout():
                     showlegend=True,
                     name=row['Month Name']
                 ))
+            q_max = quarantine_monthly_df['Count'].max() if not quarantine_monthly_df.empty else 1
             q_fig.update_layout(
                 xaxis={'categoryorder': 'array', 'categoryarray': quarantine_monthly_df['Month Name'].tolist(),
                        'title': None,
                        'tickfont': dict(family='Arial', size=10)},
                 yaxis={'title': dict(text='Count', font=dict(family='Arial', size=11)),
-                       'tickfont': dict(family='Arial', size=10)},
-                height=240,
-                margin=dict(t=20, b=40, l=40, r=120),
+                       'tickfont': dict(family='Arial', size=10),
+                       'range': [0, q_max * 1.3]},
+                height=260,
+                margin=dict(t=45, b=40, l=40, r=120),
                 plot_bgcolor='white',
                 paper_bgcolor='white',
                 bargap=0.3,
@@ -1689,14 +1691,37 @@ def falcon_dashboard_pdf_layout():
                 file_totals = file_totals.sort_values('Total', ascending=False).reset_index(drop=True)
                 top_files = file_totals.head(10)
 
-                # Diverse color palette for pie slices
-                pie_palette = [
-                    '#70AD47', '#5B9BD5', '#FFC000', '#DC143C', '#ED7D31',
-                    '#9B59B6', '#1ABC9C', '#E74C3C', '#3498DB', '#F39C12'
-                ]
-                pie_colors = [pie_palette[i % len(pie_palette)] for i in range(len(top_files))]
+                # Month color map: chronological order → Green/Blue/Gold
+                month_color_map = {
+                    m: MONTHLY_COLORS[month_color_keys[i] if i < 3 else 'month_3']
+                    for i, m in enumerate(all_q_months)
+                }
 
-                # Pie chart — quarantine share by file name
+                # Per-file dominant month = month with highest quarantine count
+                def get_dominant_month_color(file_name):
+                    best_month, best_count = all_q_months[0], 0
+                    for m in all_q_months:
+                        cnt = len(quarantine_raw_df[
+                            (quarantine_raw_df['File Name'] == file_name) &
+                            (quarantine_raw_df['Month Name'] == m)
+                        ])
+                        if cnt > best_count:
+                            best_count, best_month = cnt, m
+                    return best_month, month_color_map[best_month]
+
+                # Build table rows with dominant month color
+                tbl_rows = []
+                pie_colors = []
+                for i, row in top_files.iterrows():
+                    fn = row['File Name']
+                    total = row['Total']
+                    hosts = quarantine_raw_df[quarantine_raw_df['File Name'] == fn]['Hostname'].nunique()
+                    dom_month, dom_color = get_dominant_month_color(fn)
+                    tbl_rows.append({'name': fn, 'total': total, 'hosts': hosts,
+                                     'color': dom_color, 'month': dom_month})
+                    pie_colors.append(dom_color)
+
+                # Pie chart — quarantine share by file, colored by dominant month
                 pie_fig = go.Figure(data=[go.Pie(
                     labels=top_files['File Name'].tolist(),
                     values=top_files['Total'].tolist(),
@@ -1713,14 +1738,6 @@ def falcon_dashboard_pdf_layout():
                     paper_bgcolor='white'
                 )
 
-                # Build table rows: file name, total count, unique hosts
-                tbl_rows = []
-                for i, row in top_files.iterrows():
-                    fn = row['File Name']
-                    total = row['Total']
-                    hosts = quarantine_raw_df[quarantine_raw_df['File Name'] == fn]['Hostname'].nunique()
-                    tbl_rows.append({'name': fn, 'total': total, 'hosts': hosts, 'color': pie_palette[len(tbl_rows) % len(pie_palette)]})
-
                 # Render pie + table side by side
                 col_pie, col_tbl = st.columns([5, 4])
                 with col_pie:
@@ -1731,8 +1748,9 @@ def falcon_dashboard_pdf_layout():
                         '<thead>'
                         f'<tr style="background: {SECTION_HEADER_COLOR}; color: white;">'
                         '<th style="padding: 7px 8px; text-align: left; font-weight: bold;">File Name</th>'
-                        '<th style="padding: 7px 8px; text-align: center; font-weight: bold;">Count</th>'
-                        '<th style="padding: 7px 8px; text-align: center; font-weight: bold;">Hosts</th>'
+                        '<th style="padding: 7px 6px; text-align: center; font-weight: bold;">Month</th>'
+                        '<th style="padding: 7px 6px; text-align: center; font-weight: bold;">Count</th>'
+                        '<th style="padding: 7px 6px; text-align: center; font-weight: bold;">Hosts</th>'
                         '</tr>'
                         '</thead><tbody>'
                     )
@@ -1741,11 +1759,14 @@ def falcon_dashboard_pdf_layout():
                         dot = r['color']
                         tbl_html += (
                             f'<tr style="background: {bg}; border-bottom: 1px solid #e8e8e8;">'
-                            f'<td style="padding: 6px 8px;">'
+                            f'<td style="padding: 5px 8px;">'
                             f'<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:{dot}; margin-right:5px; vertical-align:middle;"></span>'
                             f'{r["name"]}</td>'
-                            f'<td style="padding: 6px 8px; text-align: center; font-weight: bold;">{r["total"]}</td>'
-                            f'<td style="padding: 6px 8px; text-align: center;">{r["hosts"]}</td>'
+                            f'<td style="padding: 5px 6px; text-align: center;">'
+                            f'<span style="background:{dot}; color:#000; font-size:8px; padding:2px 5px; border-radius:3px; white-space:nowrap;">{r["month"]}</span>'
+                            f'</td>'
+                            f'<td style="padding: 5px 6px; text-align: center; font-weight: bold;">{r["total"]}</td>'
+                            f'<td style="padding: 5px 6px; text-align: center;">{r["hosts"]}</td>'
                             f'</tr>'
                         )
                     tbl_html += '</tbody></table>'
@@ -2059,7 +2080,7 @@ def apply_pdf_chart_styling(chart, analysis_key=None):
         margin=dict(
             l=45,
             r=40,
-            t=15,
+            t=40,
             b=45
         )
     )
