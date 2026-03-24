@@ -66,6 +66,10 @@ def pivot_table_builder_dashboard():
         st.info("💡 Go to 'Falcon Data Generator' in the sidebar, upload your files, and click 'Process All Months and Generate Templates'. The analysis results will be generated automatically.")
         return
 
+    # Main content placeholder — must be created BEFORE the sidebar block
+    # so that writing to it from inside the sidebar context still renders in the main area
+    _main_content = st.container()
+
     # Sidebar configuration
     with st.sidebar:
         st.header("🔧 Pivot Table Configuration")
@@ -100,7 +104,13 @@ def pivot_table_builder_dashboard():
         }
 
         selected_results_key = category_map[analysis_category]
-        analysis_results = st.session_state[selected_results_key]
+        analysis_results = dict(st.session_state[selected_results_key])
+
+        # Inject sensor offline monthly counts into Host Analysis when available
+        if analysis_category == "Host Analysis" and 'sensor_offline_results' in st.session_state:
+            so = st.session_state['sensor_offline_results']
+            if 'offline_monthly_counts' in so:
+                analysis_results['offline_monthly_counts'] = so['offline_monthly_counts']
 
         # Step 2: Select Specific Analysis Output
         st.subheader("📊 Step 2: Select Analysis Output")
@@ -110,12 +120,15 @@ def pivot_table_builder_dashboard():
         # For quarantine analysis: only include monthly_counts, exclude all other outputs
         quarantine_exclude = ['overview', 'file_summary', 'host_summary', 'detailed_file_summary',
                              'detailed_host_summary', 'status_distribution', 'daily_trend']
+        # For sensor offline: exclude internal keys (overview, platform_counts, os_counts, raw_data)
+        sensor_offline_exclude = ['overview', 'platform_counts', 'os_counts']
 
         available_analyses = [k for k in analysis_results.keys()
                             if k not in ['raw_data', 'raw_data_filtered']
                             and not k.startswith('chart_data_')
                             and not k.startswith('raw_data_')
-                            and k not in quarantine_exclude]
+                            and k not in quarantine_exclude
+                            and k not in sensor_offline_exclude]
 
         # Create friendly names
         friendly_names = {}
@@ -141,7 +154,8 @@ def pivot_table_builder_dashboard():
         friendly_names.update({
             # Quarantine File Analysis - Only Monthly Trend
             'monthly_counts': 'Quarantine File Trend (Monthly Count)',
-            # Host Analysis
+            # Host Analysis (including sensor offline when available)
+            'offline_monthly_counts': '5. Sensor Offline - Offline Server Details',
             'overview_key_metrics': '1. Overview - KEY METRICS',
             'overview_top_hosts': '2. Overview - TOP HOSTS WITH DETECTIONS',
             'user_analysis': '3. User Analysis',
@@ -290,6 +304,132 @@ def pivot_table_builder_dashboard():
             else:
                 st.info("ℹ️ Using original generated values. Edit and save to override.")
 
+            return
+
+        # ============================
+        # SENSOR OFFLINE: Custom B.5 visualization (mirrors PDF export)
+        # ============================
+        if selected_analysis_key == 'offline_monthly_counts':
+            sensor_offline_data = st.session_state.get('sensor_offline_results', {})
+            if not sensor_offline_data or 'raw_data' not in sensor_offline_data:
+                st.warning("No sensor offline data available.")
+                return
+
+            so_raw_df = sensor_offline_data['raw_data'].copy()
+
+            # Render into the main content area (not the sidebar)
+            with _main_content:
+                st.markdown("### Offline Server Details")
+                st.markdown("*Servers with a sensor that went offline within last 30 days*")
+
+                # Pie chart: OS Version distribution
+                os_counts = so_raw_df.groupby('OS Version').size().reset_index(name='Count')
+                os_counts = os_counts.sort_values('Count', ascending=False).head(10)
+
+                pie_palette = [
+                    '#70AD47', '#5B9BD5', '#FFC000', '#DC143C', '#ED7D31',
+                    '#9B59B6', '#1ABC9C', '#E74C3C', '#3498DB', '#F39C12'
+                ]
+                pie_colors = [pie_palette[i % len(pie_palette)] for i in range(len(os_counts))]
+
+                pie_fig = go.Figure(data=[go.Pie(
+                    labels=os_counts['OS Version'].tolist(),
+                    values=os_counts['Count'].tolist(),
+                    marker=dict(colors=pie_colors, line=dict(color='white', width=1.5)),
+                    textinfo='label+percent',
+                    hovertemplate='<b>%{label}</b><br>Count: %{value}<br>%{percent}<extra></extra>',
+                    hole=0.35,
+                    textfont=dict(family='Arial', size=10),
+                    textposition='outside'
+                )])
+                pie_fig.update_layout(
+                    title=dict(
+                        text='Offline Servers by OS Version',
+                        font=dict(family='Arial', size=13, color='#333333'),
+                        x=0.5, xanchor='center'
+                    ),
+                    height=360,
+                    margin=dict(t=50, b=20, l=20, r=20),
+                    showlegend=False,
+                    paper_bgcolor='white'
+                )
+
+                # Sort by Last Seen ascending (longest offline first), group by date
+                so_display = so_raw_df.copy()
+                so_display['_ls_dt'] = pd.to_datetime(so_display['Last Seen'], errors='coerce')
+                so_display = so_display.sort_values('_ls_dt', ascending=True)
+                so_display['_ls_str'] = so_display['_ls_dt'].dt.strftime('%d %b %Y')
+
+                from collections import OrderedDict as _OD
+                date_groups = _OD()
+                for _, row in so_display.iterrows():
+                    ds = row['_ls_str']
+                    if ds not in date_groups:
+                        date_groups[ds] = []
+                    date_groups[ds].append(row)
+
+                HEADER_COLOR = '#1f4e5f'
+                tbl_html = (
+                    '<table style="width:100%; border-collapse: collapse; font-size: 11px; margin-top: 8px;">'
+                    '<thead>'
+                    f'<tr style="background: {HEADER_COLOR}; color: white;">'
+                    '<th style="padding: 8px 9px; text-align: center;">Last Seen</th>'
+                    '<th style="padding: 8px 9px; text-align: left;">Hostname</th>'
+                    '<th style="padding: 8px 7px; text-align: center;">Platform</th>'
+                    '</tr></thead><tbody>'
+                )
+                for date_idx, (date_str, rows) in enumerate(date_groups.items()):
+                    bg = '#f0f4f8' if date_idx % 2 == 0 else '#ffffff'
+                    rowspan = len(rows)
+                    for i, row in enumerate(rows):
+                        hostname = row.get('Hostname', '')
+                        platform = row.get('Platform', 'Unknown')
+                        tbl_html += f'<tr style="background: {bg}; border-bottom: 1px solid #e8e8e8;">'
+                        if i == 0:
+                            tbl_html += (
+                                f'<td rowspan="{rowspan}" style="padding: 8px 9px; text-align: center; '
+                                f'font-weight: bold; color: {HEADER_COLOR}; vertical-align: middle; '
+                                f'border-right: 2px solid #d0d0d0; white-space: nowrap;">{date_str}</td>'
+                            )
+                        tbl_html += (
+                            f'<td style="padding: 6px 9px;">{hostname}</td>'
+                            f'<td style="padding: 6px 7px; text-align: center;">{platform}</td>'
+                            '</tr>'
+                        )
+                tbl_html += '</tbody></table>'
+
+                col_pie, col_tbl = st.columns([5, 4])
+                with col_pie:
+                    st.plotly_chart(pie_fig, use_container_width=True, config={'displayModeBar': False})
+                with col_tbl:
+                    st.markdown(tbl_html, unsafe_allow_html=True)
+
+                # Footer info cards
+                total_offline = sensor_offline_data.get('overview', {}).get('total_offline', 0)
+                unique_platforms = sensor_offline_data.get('overview', {}).get('unique_platforms', 0)
+                unique_os = sensor_offline_data.get('overview', {}).get('unique_os', 0)
+                st.markdown(f"""
+                    <div style='display: flex; gap: 10px; margin-top: 16px;'>
+                        <div style='flex: 1; background: #f8f9fa; padding: 14px; border-radius: 8px;
+                                    border-left: 4px solid {HEADER_COLOR};'>
+                            <strong style='color: #333; font-size: 12px;'>Total Offline Servers</strong><br>
+                            <span style='font-size: 26px; font-weight: bold; color: {HEADER_COLOR};'>{total_offline}</span>
+                            <span style='font-size: 11px; color: #666;'> servers</span>
+                        </div>
+                        <div style='flex: 1; background: #f8f9fa; padding: 14px; border-radius: 8px;
+                                    border-left: 4px solid {HEADER_COLOR};'>
+                            <strong style='color: #333; font-size: 12px;'>Platforms</strong><br>
+                            <span style='font-size: 26px; font-weight: bold; color: {HEADER_COLOR};'>{unique_platforms}</span>
+                            <span style='font-size: 11px; color: #666;'> platform(s)</span>
+                        </div>
+                        <div style='flex: 1; background: #f8f9fa; padding: 14px; border-radius: 8px;
+                                    border-left: 4px solid {HEADER_COLOR};'>
+                            <strong style='color: #333; font-size: 12px;'>OS Versions</strong><br>
+                            <span style='font-size: 26px; font-weight: bold; color: {HEADER_COLOR};'>{unique_os}</span>
+                            <span style='font-size: 11px; color: #666;'> OS type(s)</span>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
             return
 
         df = selected_data.copy()

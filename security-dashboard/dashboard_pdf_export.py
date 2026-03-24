@@ -164,6 +164,26 @@ def apply_dashboard_css():
         [data-testid="column"] {
             padding: 0px 6px !important;
         }
+
+        /* Sidebar collapse/expand toggle button — styled icon */
+        [data-testid="collapsedControl"] {
+            background-color: #1f4e5f !important;
+            border-radius: 50% !important;
+            width: 28px !important;
+            height: 28px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            border: 2px solid #ffffff !important;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25) !important;
+            top: 50% !important;
+        }
+        [data-testid="collapsedControl"] svg {
+            stroke: #ffffff !important;
+            fill: none !important;
+            width: 14px !important;
+            height: 14px !important;
+        }
         </style>
     """, unsafe_allow_html=True)
 
@@ -941,6 +961,7 @@ def falcon_dashboard_pdf_layout():
     time_data = st.session_state.get('time_analysis_results', {})
     ticket_data = st.session_state.get('ticket_lifecycle_results', {})
     quarantine_data = st.session_state.get('quarantine_analysis_results', {})
+    sensor_offline_data = st.session_state.get('sensor_offline_results', {})
 
     # Extract months dynamically from data
     months = extract_months_from_data(host_data, detection_data, time_data)
@@ -964,6 +985,19 @@ def falcon_dashboard_pdf_layout():
 
         include_ticket_lifecycle = st.checkbox("Ticket Lifecycle Analysis", value=False, help="Include ticket status trend analysis", disabled=not ticket_data)
         include_host_analysis = st.checkbox("Host Security Analysis", value=True, help="Include host security metrics")
+
+        # Sub-option for sensor offline (indented under Host Security Analysis)
+        include_sensor_offline = False
+        if include_host_analysis:
+            include_sensor_offline = st.checkbox(
+                "    ↳ Sensor Offline Summary",
+                value=False,
+                help="Include offline server monthly trend in Host section",
+                disabled=not sensor_offline_data
+            )
+            if not sensor_offline_data and include_host_analysis:
+                st.caption("        💡 Sensor Offline disabled (no offline sensor data)")
+
         include_detection_analysis = st.checkbox("Detection and Severity Analysis", value=True, help="Include detection and severity trends")
 
         # Sub-option for quarantine analysis (indented under Detection and Severity)
@@ -1016,8 +1050,6 @@ def falcon_dashboard_pdf_layout():
     # TICKET LIFECYCLE ANALYSIS SECTION (DYNAMIC)
     # ============================================
     if include_ticket_lifecycle and ticket_data:
-        import plotly.graph_objects as go
-
         section_letter = section_letters.get('ticket', 'A')
         st.markdown(f'<div class="section-header">{section_letter}. Ticket Lifecycle Analysis</div>', unsafe_allow_html=True)
         st.markdown('<div class="analysis-section">', unsafe_allow_html=True)
@@ -1349,6 +1381,151 @@ def falcon_dashboard_pdf_layout():
                 analysis_key='sensor_analysis',
                 use_monthly_colors=True
             )
+
+        # ============================
+        # SENSOR OFFLINE ANALYSIS (OPTIONAL SUB-SECTION)
+        # ============================
+        if include_sensor_offline and sensor_offline_data and 'offline_monthly_counts' in sensor_offline_data:
+
+            offline_monthly_df = sensor_offline_data['offline_monthly_counts'].copy()
+
+            # Build chronological month order and color map
+            month_name_to_num_so = {
+                'January': 1, 'February': 2, 'March': 3, 'April': 4,
+                'May': 5, 'June': 6, 'July': 7, 'August': 8,
+                'September': 9, 'October': 10, 'November': 11, 'December': 12
+            }
+
+            def offline_month_sort_key(month_str):
+                import re as _re
+                year_match = _re.search(r'(\d{4})', str(month_str))
+                year = int(year_match.group(1)) if year_match else 2000
+                month_num = next((n for name, n in month_name_to_num_so.items() if name in str(month_str)), 0)
+                return (year, month_num)
+
+            offline_monthly_df['_sort'] = offline_monthly_df['Month Name'].apply(offline_month_sort_key)
+            offline_monthly_df = offline_monthly_df.sort_values('_sort').drop(columns=['_sort']).reset_index(drop=True)
+
+            so_month_color_keys = ['month_1', 'month_2', 'month_3']
+            so_months = offline_monthly_df['Month Name'].tolist()
+            so_month_color_map = {
+                m: MONTHLY_COLORS[so_month_color_keys[i] if i < 3 else 'month_3']
+                for i, m in enumerate(so_months)
+            }
+
+            # B.5 — Offline Server Details (pie + table)
+            st.markdown(f'<div class="chart-title">{section_letter}.5. Offline Server Details (Servers with a sensor that went offline within last 30 days)</div>', unsafe_allow_html=True)
+
+            if 'raw_data' in sensor_offline_data:
+                so_raw_df = sensor_offline_data['raw_data'].copy()
+
+                # OS version counts for pie
+                os_counts = so_raw_df.groupby('OS Version').size().reset_index(name='Count')
+                os_counts = os_counts.sort_values('Count', ascending=False).head(10)
+
+                pie_palette = [
+                    '#70AD47', '#5B9BD5', '#FFC000', '#DC143C', '#ED7D31',
+                    '#9B59B6', '#1ABC9C', '#E74C3C', '#3498DB', '#F39C12'
+                ]
+                pie_colors_so = [pie_palette[i % len(pie_palette)] for i in range(len(os_counts))]
+
+                so_pie_fig = go.Figure(data=[go.Pie(
+                    labels=os_counts['OS Version'].tolist(),
+                    values=os_counts['Count'].tolist(),
+                    marker=dict(colors=pie_colors_so, line=dict(color='white', width=1.5)),
+                    textinfo='label+percent',
+                    hovertemplate='<b>%{label}</b><br>Count: %{value}<br>%{percent}<extra></extra>',
+                    hole=0.35,
+                    textfont=dict(family='Arial', size=8),
+                    textposition='outside'
+                )])
+                so_pie_fig.update_layout(
+                    title=dict(
+                        text='Offline Servers by OS Version',
+                        font=dict(family='Arial', size=11, color='#333333'),
+                        x=0.5, xanchor='center'
+                    ),
+                    height=320,
+                    margin=dict(t=40, b=10, l=10, r=10),
+                    showlegend=False,
+                    paper_bgcolor='white'
+                )
+
+                # Sort by Last Seen ascending = oldest (longest offline) first, group same dates
+                so_display = so_raw_df.copy()
+                so_display['_ls_dt'] = pd.to_datetime(so_display['Last Seen'], errors='coerce')
+                so_display = so_display.sort_values('_ls_dt', ascending=True).head(20)
+                so_display['_ls_str'] = so_display['_ls_dt'].dt.strftime('%d %b %Y')
+
+                # Build ordered date groups
+                from collections import OrderedDict as _OD
+                date_groups = _OD()
+                for _, row in so_display.iterrows():
+                    ds = row['_ls_str']
+                    if ds not in date_groups:
+                        date_groups[ds] = []
+                    date_groups[ds].append(row)
+
+                col_pie_so, col_tbl_so = st.columns([5, 4])
+                with col_pie_so:
+                    st.plotly_chart(so_pie_fig, use_container_width=True, config={'displayModeBar': False})
+                with col_tbl_so:
+                    tbl_html_so = (
+                        '<table style="width:100%; border-collapse: collapse; font-size: 9.5px; margin-top: 8px;">'
+                        '<thead>'
+                        f'<tr style="background: {SECTION_HEADER_COLOR}; color: white;">'
+                        '<th style="padding: 6px 7px; text-align: center;">Last Seen</th>'
+                        '<th style="padding: 6px 7px; text-align: left;">Hostname</th>'
+                        '<th style="padding: 6px 5px; text-align: center;">Platform</th>'
+                        '</tr></thead><tbody>'
+                    )
+                    for date_idx, (date_str, rows) in enumerate(date_groups.items()):
+                        bg = '#f0f4f8' if date_idx % 2 == 0 else '#ffffff'
+                        rowspan = len(rows)
+                        for i, row in enumerate(rows):
+                            hostname = row.get('Hostname', '')
+                            platform = row.get('Platform', 'Unknown')
+                            tbl_html_so += f'<tr style="background: {bg}; border-bottom: 1px solid #e8e8e8;">'
+                            if i == 0:
+                                tbl_html_so += (
+                                    f'<td rowspan="{rowspan}" style="padding: 6px 7px; text-align: center; '
+                                    f'font-weight: bold; color: {SECTION_HEADER_COLOR}; vertical-align: middle; '
+                                    f'border-right: 2px solid #d0d0d0; white-space: nowrap;">{date_str}</td>'
+                                )
+                            tbl_html_so += (
+                                f'<td style="padding: 5px 7px;">{hostname}</td>'
+                                f'<td style="padding: 5px 5px; text-align: center;">{platform}</td>'
+                                f'</tr>'
+                            )
+                    tbl_html_so += '</tbody></table>'
+                    st.markdown(tbl_html_so, unsafe_allow_html=True)
+
+                # Footer info cards
+                total_offline = sensor_offline_data.get('overview', {}).get('total_offline', 0)
+                unique_platforms = sensor_offline_data.get('overview', {}).get('unique_platforms', 0)
+                unique_os = sensor_offline_data.get('overview', {}).get('unique_os', 0)
+                st.markdown(f"""
+                    <div style='display: flex; gap: 10px; margin-top: 14px;'>
+                        <div style='flex: 1; background: #f8f9fa; padding: 12px; border-radius: 8px;
+                                    border-left: 4px solid {SECTION_HEADER_COLOR};'>
+                            <strong style='color: #333; font-size: 11px;'>Total Offline Servers</strong><br>
+                            <span style='font-size: 22px; font-weight: bold; color: {SECTION_HEADER_COLOR};'>{total_offline}</span>
+                            <span style='font-size: 10px; color: #666;'> servers</span>
+                        </div>
+                        <div style='flex: 1; background: #f8f9fa; padding: 12px; border-radius: 8px;
+                                    border-left: 4px solid {SECTION_HEADER_COLOR};'>
+                            <strong style='color: #333; font-size: 11px;'>Platforms</strong><br>
+                            <span style='font-size: 22px; font-weight: bold; color: {SECTION_HEADER_COLOR};'>{unique_platforms}</span>
+                            <span style='font-size: 10px; color: #666;'> platform(s)</span>
+                        </div>
+                        <div style='flex: 1; background: #f8f9fa; padding: 12px; border-radius: 8px;
+                                    border-left: 4px solid {SECTION_HEADER_COLOR};'>
+                            <strong style='color: #333; font-size: 11px;'>OS Versions</strong><br>
+                            <span style='font-size: 22px; font-weight: bold; color: {SECTION_HEADER_COLOR};'>{unique_os}</span>
+                            <span style='font-size: 10px; color: #666;'> OS type(s)</span>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
 
         st.markdown('</div>', unsafe_allow_html=True)  # Close Section B
 

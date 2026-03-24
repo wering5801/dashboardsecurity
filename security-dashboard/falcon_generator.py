@@ -11,6 +11,7 @@ from time_analysis_generator import generate_time_analysis
 from ticket_lifecycle_generator import generate_ticket_lifecycle_analysis, create_placeholder_ticket_data
 from detection_status_generator import generate_detection_status_analysis
 from quarantine_file_analysis import parse_quarantine_json, generate_quarantine_analysis, validate_quarantine_json
+from sensor_offline_analysis import parse_sensor_offline_csv, generate_sensor_offline_analysis, validate_sensor_offline_csv
 import json
 
 # Dummy data generation function removed - no longer needed
@@ -558,6 +559,72 @@ def falcon_generator_dashboard():
             quarantine_upload_file = None
 
     # ============================================
+    # SENSOR OFFLINE ANALYSIS (OPTIONAL)
+    # ============================================
+    st.markdown("---")
+    st.header("🖥️ Sensor Offline Analysis (Optional)")
+    st.markdown("""
+    **Optional Section:** Upload a Falcon host CSV export to identify servers with offline sensors.
+
+    **This creates:**
+    - **Monthly Offline Trend**: Bar chart showing how many servers went offline per month
+    - **Platform Breakdown**: Windows vs Linux distribution
+    - **OS Version Breakdown**: Offline count by OS version
+    - **Server Detail Table**: Full list of offline servers with Last Seen date and site info
+
+    Upload the CSV exported from the **Falcon Hosts** page (the same format as the host export).
+    """)
+
+    use_sensor_offline_data = st.checkbox("Include Sensor Offline Analysis", value=False)
+    sensor_offline_upload_file = None
+
+    if use_sensor_offline_data:
+        with st.expander("📖 Required CSV Columns", expanded=False):
+            st.markdown("""
+            **Required:**
+            - `Hostname` — Server/host name
+            - `Last Seen` — ISO timestamp of last sensor check-in (e.g. `2026-03-02T20:48:52Z`)
+
+            **Optional (auto-detected if present):**
+            - `Platform`, `OS Version`, `Type`, `Site`, `Host Groups`, `Last Logged In User Account`
+
+            This is the standard Falcon **Hosts** page CSV export format.
+            """)
+
+        st.markdown("#### 📁 Upload Sensor Offline CSV File")
+        st.info("💡 Upload the CSV file exported from the Falcon Hosts page.")
+
+        sensor_offline_file = st.file_uploader(
+            "Upload Sensor Offline Data (CSV)",
+            type=['csv'],
+            key="sensor_offline_csv_file",
+            help="Upload Falcon Hosts CSV export"
+        )
+
+        if sensor_offline_file:
+            try:
+                sensor_offline_df = parse_sensor_offline_csv(sensor_offline_file)
+                validation = validate_sensor_offline_csv(sensor_offline_df)
+
+                if not validation['is_valid']:
+                    st.error(f"❌ Invalid CSV: {'; '.join(validation['errors'])}")
+                    sensor_offline_upload_file = None
+                else:
+                    if validation['warnings']:
+                        for w in validation['warnings']:
+                            st.warning(f"⚠️ {w}")
+                    st.success(f"✅ CSV loaded: {validation['record_count']} offline server records found")
+                    st.session_state['sensor_offline_csv_data'] = sensor_offline_df
+                    sensor_offline_upload_file = True
+
+            except Exception as e:
+                st.error(f"❌ Error reading CSV: {str(e)}")
+                sensor_offline_upload_file = None
+        else:
+            st.warning("⚠️ No CSV file uploaded")
+            sensor_offline_upload_file = None
+
+    # ============================================
     # DETECTION STATUS DATA (STATUS + SEVERITY) - HIDDEN
     # This functionality is now merged into Ticket Lifecycle above
     # ============================================
@@ -781,6 +848,25 @@ def falcon_generator_dashboard():
                         with status_container:
                             st.error(f"Error generating quarantine analysis: {error_msg}")
                             st.warning("Quarantine analysis failed, but other templates are still available.")
+
+                # ============================================
+                # Generate Sensor Offline Analysis (if enabled)
+                # ============================================
+                if use_sensor_offline_data and sensor_offline_upload_file:
+                    try:
+                        sensor_offline_df = st.session_state.get('sensor_offline_csv_data')
+                        if sensor_offline_df is not None:
+                            with status_container:
+                                st.info("🖥️ Processing sensor offline data...")
+                            sensor_offline_results = generate_sensor_offline_analysis(sensor_offline_df)
+                            st.session_state['sensor_offline_results'] = sensor_offline_results
+                            with status_container:
+                                st.success(f"✅ Sensor Offline Analysis: {sensor_offline_results['overview']['total_offline']} offline servers processed")
+                    except Exception as e:
+                        error_msg = str(e).encode('ascii', 'replace').decode('ascii')
+                        with status_container:
+                            st.error(f"Error generating sensor offline analysis: {error_msg}")
+                            st.warning("Sensor offline analysis failed, but other templates are still available.")
 
                 # ============================================
                 # Generate Detection Status Analysis (if enabled)
