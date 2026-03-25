@@ -48,11 +48,17 @@ def parse_quarantine_json(json_data: str or dict or list) -> pd.DataFrame:
         df = pd.DataFrame(data)
 
         # Validate required columns
-        required_columns = ['Date of Quarantine', 'File Name', 'Hostname', 'User', 'Status']
+        required_columns = ['Date of Quarantine', 'File Name', 'Hostname', 'Status']
         missing_columns = [col for col in required_columns if col not in df.columns]
 
         if missing_columns:
             raise ValueError(f"Missing required columns: {', '.join(missing_columns)}")
+
+        # User is optional — fill with empty string if not present
+        if 'User' not in df.columns:
+            df['User'] = ''
+        else:
+            df['User'] = df['User'].fillna('')
 
         # Parse date
         df['Date of Quarantine'] = pd.to_datetime(df['Date of Quarantine'], errors='coerce')
@@ -93,7 +99,7 @@ def generate_quarantine_analysis(df: pd.DataFrame) -> Dict:
     total_quarantined = len(df)
     unique_files = df['File Name'].nunique()
     unique_hosts = df['Hostname'].nunique()
-    unique_users = df['User'].nunique()
+    unique_users = df['User'].replace('', pd.NA).dropna().nunique()
 
     results['overview'] = {
         'total_quarantined': total_quarantined,
@@ -117,7 +123,6 @@ def generate_quarantine_analysis(df: pd.DataFrame) -> Dict:
         'User': 'nunique',
         'Date of Quarantine': 'count'
     }).reset_index()
-
     file_summary.columns = ['File Name', 'Affected Hosts', 'Affected Users', 'Quarantine Count']
     file_summary = file_summary.sort_values('Quarantine Count', ascending=False)
     results['file_summary'] = file_summary
@@ -125,10 +130,9 @@ def generate_quarantine_analysis(df: pd.DataFrame) -> Dict:
     # 4. Host Summary - Most affected hosts
     host_summary = df.groupby('Hostname').agg({
         'File Name': 'nunique',
-        'User': lambda x: x.mode()[0] if not x.empty else 'N/A',  # Most common user
+        'User': lambda x: x[x != ''].mode()[0] if not x[x != ''].empty else 'N/A',
         'Date of Quarantine': 'count'
     }).reset_index()
-
     host_summary.columns = ['Hostname', 'Unique Files', 'Primary User', 'Total Quarantines']
     host_summary = host_summary.sort_values('Total Quarantines', ascending=False)
     results['host_summary'] = host_summary
@@ -180,7 +184,7 @@ def generate_quarantine_analysis(df: pd.DataFrame) -> Dict:
             'Hostname': hostname,
             'Total Quarantines': len(host_df),
             'Unique Files': host_df['File Name'].nunique(),
-            'Primary User': host_df['User'].mode()[0] if not host_df['User'].empty else 'N/A',
+            'Primary User': host_df['User'][host_df['User'] != ''].mode()[0] if not host_df['User'][host_df['User'] != ''].empty else 'N/A',
             'Files': files_quarantined,
             'Last Activity': host_df['Date of Quarantine'].max().strftime('%d/%m/%Y %H:%M')
         })
@@ -289,7 +293,7 @@ def validate_quarantine_json(json_data: str or dict or list) -> Dict[str, any]:
             return validation_result
 
         # Check required fields in first record
-        required_fields = ['Date of Quarantine', 'File Name', 'Hostname', 'User', 'Status']
+        required_fields = ['Date of Quarantine', 'File Name', 'Hostname', 'Status']
         first_record = data[0]
 
         missing_fields = [field for field in required_fields if field not in first_record]
