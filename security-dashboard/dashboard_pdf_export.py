@@ -2063,40 +2063,37 @@ def falcon_dashboard_pdf_layout():
                 use_monthly_colors=True
             )
 
-        # D.2 and D.3 side by side - EXACT SAME STYLING as pivot table builder
-        col1, col2 = st.columns(2)
+        # D.2 - Full width
+        st.markdown(f'<div class="chart-title">{section_letter}.2. Hourly Distribution of Detections Across {month_text} Trends</div>', unsafe_allow_html=True)
+        if 'hourly_analysis' in time_data:
+            create_chart_with_pivot_logic(
+                time_data['hourly_analysis'],
+                rows=['Hour'],
+                columns=[],
+                values=['Detection Count'],
+                chart_type='Line Chart',
+                height=280,
+                analysis_key='hourly_analysis',
+                use_monthly_colors=False,
+                sort_by='Hour',
+                sort_direction='descending'
+            )
 
-        with col1:
-            st.markdown(f'<div class="chart-title">{section_letter}.2. Hourly Distribution of Detections Across {month_text} Trends</div>', unsafe_allow_html=True)
-            if 'hourly_analysis' in time_data:
-                create_chart_with_pivot_logic(
-                    time_data['hourly_analysis'],
-                    rows=['Hour'],
-                    columns=[],
-                    values=['Detection Count'],
-                    chart_type='Line Chart',
-                    height=220,
-                    analysis_key='hourly_analysis',
-                    use_monthly_colors=False,
-                    sort_by='Hour',
-                    sort_direction='descending'
-                )
-
-        with col2:
-            st.markdown(f'<div class="chart-title">{section_letter}.3. Detection Frequency by Day of Week Across {month_text} Trends</div>', unsafe_allow_html=True)
-            if 'day_of_week' in time_data:
-                create_chart_with_pivot_logic(
-                    time_data['day_of_week'],
-                    rows=['Day', 'Type'],
-                    columns=[],
-                    values=['Detection Count'],
-                    chart_type='Bar Chart',
-                    height=220,
-                    analysis_key='day_of_week',
-                    use_monthly_colors=False,
-                    sort_by='Day',
-                    sort_direction='descending'  # Descending gives Monday→Sunday due to (not sort_ascending) logic
-                )
+        # D.3 - Full width
+        st.markdown(f'<div class="chart-title">{section_letter}.3. Detection Frequency by Day of Week Across {month_text} Trends</div>', unsafe_allow_html=True)
+        if 'day_of_week' in time_data:
+            create_chart_with_pivot_logic(
+                time_data['day_of_week'],
+                rows=['Day', 'Type'],
+                columns=[],
+                values=['Detection Count'],
+                chart_type='Bar Chart',
+                height=280,
+                analysis_key='day_of_week',
+                use_monthly_colors=False,
+                sort_by='Day',
+                sort_direction='descending'
+            )
 
         st.markdown('</div>', unsafe_allow_html=True)  # Close Section D
 
