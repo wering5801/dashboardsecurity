@@ -1866,44 +1866,65 @@ def falcon_dashboard_pdf_layout():
                 quarantine_raw_df = quarantine_data['raw_data'].copy()
                 all_q_months = quarantine_monthly_df['Month Name'].tolist()
 
-                # File totals sorted descending
-                file_totals = quarantine_raw_df.groupby('File Name').size().reset_index(name='Total')
-                file_totals = file_totals.sort_values('Total', ascending=False).reset_index(drop=True)
-                top_files = file_totals.head(10)
-
                 # Month color map: chronological order → Green/Blue/Gold
                 month_color_map = {
                     m: MONTHLY_COLORS[month_color_keys[i] if i < 3 else 'month_3']
                     for i, m in enumerate(all_q_months)
                 }
 
-                # Per-file dominant month = month with highest quarantine count
-                def get_dominant_month_color(file_name):
+                # Per-file: dominant month (most events), latest date, all statuses
+                def get_file_meta(file_name):
+                    fdf = quarantine_raw_df[quarantine_raw_df['File Name'] == file_name]
+                    # dominant month by count
                     best_month, best_count = all_q_months[0], 0
                     for m in all_q_months:
-                        cnt = len(quarantine_raw_df[
-                            (quarantine_raw_df['File Name'] == file_name) &
-                            (quarantine_raw_df['Month Name'] == m)
-                        ])
+                        cnt = len(fdf[fdf['Month Name'] == m])
                         if cnt > best_count:
                             best_count, best_month = cnt, m
-                    return best_month, month_color_map[best_month]
+                    dom_color = month_color_map[best_month]
+                    # latest quarantine date
+                    latest_dt = fdf['Date of Quarantine'].max()
+                    # statuses — unique, sorted
+                    statuses = sorted(fdf['Status'].dropna().unique().tolist())
+                    return best_month, dom_color, latest_dt, statuses
 
-                # Build table rows with dominant month color
+                # Status badge colors
+                status_style = {
+                    'quarantined': ('#DC143C', '#fff'),
+                    'released':    ('#ED7D31', '#fff'),
+                    'purged':      ('#555555', '#fff'),
+                }
+
+                # Build per-file rows, sorted by latest date descending (newest first)
                 tbl_rows = []
                 pie_colors = []
-                for i, row in top_files.iterrows():
-                    fn = row['File Name']
-                    total = row['Total']
-                    hosts = quarantine_raw_df[quarantine_raw_df['File Name'] == fn]['Hostname'].nunique()
-                    dom_month, dom_color = get_dominant_month_color(fn)
+                file_list = quarantine_raw_df['File Name'].unique().tolist()
+                for fn in file_list:
+                    fdf = quarantine_raw_df[quarantine_raw_df['File Name'] == fn]
+                    total = len(fdf)
+                    hosts = fdf['Hostname'].nunique()
+                    dom_month, dom_color, latest_dt, statuses = get_file_meta(fn)
                     tbl_rows.append({'name': fn, 'total': total, 'hosts': hosts,
-                                     'color': dom_color, 'month': dom_month})
+                                     'color': dom_color, 'month': dom_month,
+                                     'latest_dt': latest_dt, 'statuses': statuses})
                     pie_colors.append(dom_color)
 
-                # Card grid — one card per top quarantined file
+                # Sort by latest date descending (newest first), then limit to top 10
+                tbl_rows.sort(key=lambda r: r['latest_dt'] if pd.notna(r['latest_dt']) else pd.Timestamp.min, reverse=True)
+                tbl_rows = tbl_rows[:10]
+
+                # Card grid — sorted newest → oldest, colored Green→Blue→Gold by month
                 cards_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px;'>"
                 for r in tbl_rows:
+                    latest_str = r['latest_dt'].strftime('%d %b %Y') if pd.notna(r['latest_dt']) else 'N/A'
+                    status_badges = ''
+                    for s in r['statuses']:
+                        bg, fg = status_style.get(s.lower(), ('#888', '#fff'))
+                        status_badges += (
+                            f"<span style='background:{bg}; color:{fg}; font-size:8px; "
+                            f"padding:2px 6px; border-radius:3px; font-weight:600; "
+                            f"margin-right:3px; white-space:nowrap;'>{s.upper()}</span>"
+                        )
                     cards_html += f"""
                     <div style='flex: 1 1 180px; min-width: 160px; max-width: 220px;
                                 background: #ffffff; border-radius: 8px;
@@ -1911,16 +1932,22 @@ def falcon_dashboard_pdf_layout():
                                 box-shadow: 0 2px 6px rgba(0,0,0,0.08);
                                 padding: 12px 14px;'>
                         <div style='font-size: 9.5px; color: #555; word-break: break-all;
-                                    margin-bottom: 8px; font-weight: 600; line-height: 1.3;'>{r['name']}</div>
+                                    margin-bottom: 6px; font-weight: 600; line-height: 1.3;'>{r['name']}</div>
                         <div style='font-size: 22px; font-weight: bold; color: {r['color']};
                                     line-height: 1;'>{r['total']}</div>
                         <div style='font-size: 9px; color: #888; margin-bottom: 6px;'>quarantine events</div>
-                        <div style='font-size: 9px; color: #555;'>
+                        <div style='font-size: 9px; color: #555; margin-bottom: 5px;'>
                             <span style='background: #f0f4f8; padding: 2px 6px; border-radius: 3px;'>
-                                {r['hosts']} host(s)
+                                📅 {latest_str}
                             </span>
                         </div>
-                        <div style='margin-top: 6px;'>
+                        <div style='font-size: 9px; color: #555; margin-bottom: 5px;'>
+                            <span style='background: #f0f4f8; padding: 2px 6px; border-radius: 3px;'>
+                                🖥 {r['hosts']} host(s)
+                            </span>
+                        </div>
+                        <div style='margin-bottom: 5px;'>{status_badges}</div>
+                        <div>
                             <span style='background: {r['color']}22; color: {r['color']};
                                          font-size: 8px; padding: 2px 6px; border-radius: 3px;
                                          font-weight: 600; border: 1px solid {r['color']}55;
