@@ -322,25 +322,25 @@ def pivot_table_builder_dashboard():
                 st.markdown("### Offline Server Details")
                 st.markdown("*Servers with a sensor that went offline within last 30 days*")
 
-                # Pie chart: OS Version distribution
+                # Horizontal bar chart: OS Version distribution
                 os_counts = so_raw_df.groupby('OS Version').size().reset_index(name='Count')
-                os_counts = os_counts.sort_values('Count', ascending=False).head(10)
+                os_counts = os_counts.sort_values('Count', ascending=True)  # ascending so largest is at top
 
-                pie_palette = [
+                bar_palette = [
                     '#70AD47', '#5B9BD5', '#FFC000', '#DC143C', '#ED7D31',
                     '#9B59B6', '#1ABC9C', '#E74C3C', '#3498DB', '#F39C12'
                 ]
-                pie_colors = [pie_palette[i % len(pie_palette)] for i in range(len(os_counts))]
+                bar_colors = [bar_palette[i % len(bar_palette)] for i in range(len(os_counts))]
 
-                pie_fig = go.Figure(data=[go.Pie(
-                    labels=os_counts['OS Version'].tolist(),
-                    values=os_counts['Count'].tolist(),
-                    marker=dict(colors=pie_colors, line=dict(color='white', width=1.5)),
-                    textinfo='label+percent',
-                    hovertemplate='<b>%{label}</b><br>Count: %{value}<br>%{percent}<extra></extra>',
-                    hole=0.35,
+                pie_fig = go.Figure(data=[go.Bar(
+                    x=os_counts['Count'].tolist(),
+                    y=os_counts['OS Version'].tolist(),
+                    orientation='h',
+                    marker=dict(color=bar_colors, line=dict(color='white', width=0.5)),
+                    text=os_counts['Count'].tolist(),
+                    textposition='outside',
                     textfont=dict(family='Arial', size=10),
-                    textposition='outside'
+                    hovertemplate='<b>%{y}</b><br>Count: %{x}<extra></extra>'
                 )])
                 pie_fig.update_layout(
                     title=dict(
@@ -348,9 +348,12 @@ def pivot_table_builder_dashboard():
                         font=dict(family='Arial', size=13, color='#333333'),
                         x=0.5, xanchor='center'
                     ),
-                    height=360,
-                    margin=dict(t=50, b=20, l=20, r=20),
-                    showlegend=False,
+                    height=max(220, len(os_counts) * 45 + 80),
+                    margin=dict(t=50, b=20, l=20, r=60),
+                    xaxis=dict(title=dict(text='Count', font=dict(family='Arial', size=11)),
+                               tickfont=dict(family='Arial', size=10)),
+                    yaxis=dict(tickfont=dict(family='Arial', size=10)),
+                    plot_bgcolor='white',
                     paper_bgcolor='white'
                 )
 

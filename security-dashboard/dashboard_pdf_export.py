@@ -1419,25 +1419,25 @@ def falcon_dashboard_pdf_layout():
             if 'raw_data' in sensor_offline_data:
                 so_raw_df = sensor_offline_data['raw_data'].copy()
 
-                # OS version counts for pie
+                # OS version counts — horizontal bar chart
                 os_counts = so_raw_df.groupby('OS Version').size().reset_index(name='Count')
-                os_counts = os_counts.sort_values('Count', ascending=False).head(10)
+                os_counts = os_counts.sort_values('Count', ascending=True)  # ascending so largest bar is at top
 
-                pie_palette = [
+                bar_palette = [
                     '#70AD47', '#5B9BD5', '#FFC000', '#DC143C', '#ED7D31',
                     '#9B59B6', '#1ABC9C', '#E74C3C', '#3498DB', '#F39C12'
                 ]
-                pie_colors_so = [pie_palette[i % len(pie_palette)] for i in range(len(os_counts))]
+                bar_colors_so = [bar_palette[i % len(bar_palette)] for i in range(len(os_counts))]
 
-                so_pie_fig = go.Figure(data=[go.Pie(
-                    labels=os_counts['OS Version'].tolist(),
-                    values=os_counts['Count'].tolist(),
-                    marker=dict(colors=pie_colors_so, line=dict(color='white', width=1.5)),
-                    textinfo='label+percent',
-                    hovertemplate='<b>%{label}</b><br>Count: %{value}<br>%{percent}<extra></extra>',
-                    hole=0.35,
-                    textfont=dict(family='Arial', size=8),
-                    textposition='outside'
+                so_pie_fig = go.Figure(data=[go.Bar(
+                    x=os_counts['Count'].tolist(),
+                    y=os_counts['OS Version'].tolist(),
+                    orientation='h',
+                    marker=dict(color=bar_colors_so, line=dict(color='white', width=0.5)),
+                    text=os_counts['Count'].tolist(),
+                    textposition='outside',
+                    textfont=dict(family='Arial', size=9),
+                    hovertemplate='<b>%{y}</b><br>Count: %{x}<extra></extra>'
                 )])
                 so_pie_fig.update_layout(
                     title=dict(
@@ -1445,9 +1445,12 @@ def falcon_dashboard_pdf_layout():
                         font=dict(family='Arial', size=11, color='#333333'),
                         x=0.5, xanchor='center'
                     ),
-                    height=320,
-                    margin=dict(t=40, b=10, l=10, r=10),
-                    showlegend=False,
+                    height=max(200, len(os_counts) * 40 + 70),
+                    margin=dict(t=40, b=20, l=10, r=50),
+                    xaxis=dict(title=dict(text='Count', font=dict(family='Arial', size=10)),
+                               tickfont=dict(family='Arial', size=9)),
+                    yaxis=dict(tickfont=dict(family='Arial', size=9)),
+                    plot_bgcolor='white',
                     paper_bgcolor='white'
                 )
 
@@ -1903,15 +1906,24 @@ def falcon_dashboard_pdf_layout():
                     labels=top_files['File Name'].tolist(),
                     values=top_files['Total'].tolist(),
                     marker=dict(colors=pie_colors, line=dict(color='white', width=1.5)),
-                    textinfo='percent',
+                    textinfo='label+percent',
                     hovertemplate='<b>%{label}</b><br>Count: %{value}<br>%{percent}<extra></extra>',
                     hole=0.35,
-                    textfont=dict(family='Arial', size=9)
+                    textfont=dict(family='Arial', size=8),
+                    textposition='outside'
                 )])
                 pie_fig.update_layout(
-                    height=290,
-                    margin=dict(t=10, b=10, l=10, r=10),
-                    showlegend=False,
+                    height=320,
+                    margin=dict(t=10, b=10, l=10, r=150),
+                    showlegend=True,
+                    legend=dict(
+                        font=dict(family='Arial', size=8, color='#333333'),
+                        orientation='v',
+                        x=1.02,
+                        y=0.5,
+                        xanchor='left',
+                        yanchor='middle'
+                    ),
                     paper_bgcolor='white'
                 )
 
