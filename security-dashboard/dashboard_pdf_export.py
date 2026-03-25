@@ -1419,9 +1419,9 @@ def falcon_dashboard_pdf_layout():
             if 'raw_data' in sensor_offline_data:
                 so_raw_df = sensor_offline_data['raw_data'].copy()
 
-                # OS version counts — horizontal bar chart
+                # OS version counts — vertical column bar chart
                 os_counts = so_raw_df.groupby('OS Version').size().reset_index(name='Count')
-                os_counts = os_counts.sort_values('Count', ascending=True)  # ascending so largest bar is at top
+                os_counts = os_counts.sort_values('Count', ascending=False)
 
                 bar_palette = [
                     '#70AD47', '#5B9BD5', '#FFC000', '#DC143C', '#ED7D31',
@@ -1430,14 +1430,13 @@ def falcon_dashboard_pdf_layout():
                 bar_colors_so = [bar_palette[i % len(bar_palette)] for i in range(len(os_counts))]
 
                 so_pie_fig = go.Figure(data=[go.Bar(
-                    x=os_counts['Count'].tolist(),
-                    y=os_counts['OS Version'].tolist(),
-                    orientation='h',
+                    x=os_counts['OS Version'].tolist(),
+                    y=os_counts['Count'].tolist(),
                     marker=dict(color=bar_colors_so, line=dict(color='white', width=0.5)),
                     text=os_counts['Count'].tolist(),
                     textposition='outside',
                     textfont=dict(family='Arial', size=9),
-                    hovertemplate='<b>%{y}</b><br>Count: %{x}<extra></extra>'
+                    hovertemplate='<b>%{x}</b><br>Count: %{y}<extra></extra>'
                 )])
                 so_pie_fig.update_layout(
                     title=dict(
@@ -1445,11 +1444,12 @@ def falcon_dashboard_pdf_layout():
                         font=dict(family='Arial', size=11, color='#333333'),
                         x=0.5, xanchor='center'
                     ),
-                    height=max(200, len(os_counts) * 40 + 70),
-                    margin=dict(t=40, b=20, l=10, r=50),
-                    xaxis=dict(title=dict(text='Count', font=dict(family='Arial', size=10)),
+                    height=300,
+                    margin=dict(t=40, b=80, l=40, r=20),
+                    xaxis=dict(tickfont=dict(family='Arial', size=9), tickangle=-30),
+                    yaxis=dict(title=dict(text='Count', font=dict(family='Arial', size=10)),
                                tickfont=dict(family='Arial', size=9)),
-                    yaxis=dict(tickfont=dict(family='Arial', size=9)),
+                    bargap=0.3,
                     plot_bgcolor='white',
                     paper_bgcolor='white'
                 )
@@ -1901,65 +1901,34 @@ def falcon_dashboard_pdf_layout():
                                      'color': dom_color, 'month': dom_month})
                     pie_colors.append(dom_color)
 
-                # Pie chart — quarantine share by file, colored by dominant month
-                pie_fig = go.Figure(data=[go.Pie(
-                    labels=top_files['File Name'].tolist(),
-                    values=top_files['Total'].tolist(),
-                    marker=dict(colors=pie_colors, line=dict(color='white', width=1.5)),
-                    textinfo='label+percent',
-                    hovertemplate='<b>%{label}</b><br>Count: %{value}<br>%{percent}<extra></extra>',
-                    hole=0.35,
-                    textfont=dict(family='Arial', size=8),
-                    textposition='outside'
-                )])
-                pie_fig.update_layout(
-                    height=320,
-                    margin=dict(t=10, b=10, l=10, r=150),
-                    showlegend=True,
-                    legend=dict(
-                        font=dict(family='Arial', size=8, color='#333333'),
-                        orientation='v',
-                        x=1.02,
-                        y=0.5,
-                        xanchor='left',
-                        yanchor='middle'
-                    ),
-                    paper_bgcolor='white'
-                )
-
-                # Render pie + table side by side
-                col_pie, col_tbl = st.columns([5, 4])
-                with col_pie:
-                    st.plotly_chart(pie_fig, use_container_width=True, config={'displayModeBar': False})
-                with col_tbl:
-                    tbl_html = (
-                        '<table style="width:100%; border-collapse: collapse; font-size: 10px; margin-top: 8px;">'
-                        '<thead>'
-                        f'<tr style="background: {SECTION_HEADER_COLOR}; color: white;">'
-                        '<th style="padding: 7px 8px; text-align: left; font-weight: bold;">File Name</th>'
-                        '<th style="padding: 7px 6px; text-align: center; font-weight: bold;">Month</th>'
-                        '<th style="padding: 7px 6px; text-align: center; font-weight: bold;">Count</th>'
-                        '<th style="padding: 7px 6px; text-align: center; font-weight: bold;">Hosts</th>'
-                        '</tr>'
-                        '</thead><tbody>'
-                    )
-                    for idx, r in enumerate(tbl_rows):
-                        bg = '#f9f9f9' if idx % 2 == 0 else '#ffffff'
-                        dot = r['color']
-                        tbl_html += (
-                            f'<tr style="background: {bg}; border-bottom: 1px solid #e8e8e8;">'
-                            f'<td style="padding: 5px 8px;">'
-                            f'<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:{dot}; margin-right:5px; vertical-align:middle;"></span>'
-                            f'{r["name"]}</td>'
-                            f'<td style="padding: 5px 6px; text-align: center;">'
-                            f'<span style="background:{dot}; color:#000; font-size:8px; padding:2px 5px; border-radius:3px; white-space:nowrap;">{r["month"]}</span>'
-                            f'</td>'
-                            f'<td style="padding: 5px 6px; text-align: center; font-weight: bold;">{r["total"]}</td>'
-                            f'<td style="padding: 5px 6px; text-align: center;">{r["hosts"]}</td>'
-                            f'</tr>'
-                        )
-                    tbl_html += '</tbody></table>'
-                    st.markdown(tbl_html, unsafe_allow_html=True)
+                # Card grid — one card per top quarantined file
+                cards_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px;'>"
+                for r in tbl_rows:
+                    cards_html += f"""
+                    <div style='flex: 1 1 180px; min-width: 160px; max-width: 220px;
+                                background: #ffffff; border-radius: 8px;
+                                border-top: 4px solid {r['color']};
+                                box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+                                padding: 12px 14px;'>
+                        <div style='font-size: 9.5px; color: #555; word-break: break-all;
+                                    margin-bottom: 8px; font-weight: 600; line-height: 1.3;'>{r['name']}</div>
+                        <div style='font-size: 22px; font-weight: bold; color: {r['color']};
+                                    line-height: 1;'>{r['total']}</div>
+                        <div style='font-size: 9px; color: #888; margin-bottom: 6px;'>quarantine events</div>
+                        <div style='font-size: 9px; color: #555;'>
+                            <span style='background: #f0f4f8; padding: 2px 6px; border-radius: 3px;'>
+                                {r['hosts']} host(s)
+                            </span>
+                        </div>
+                        <div style='margin-top: 6px;'>
+                            <span style='background: {r['color']}22; color: {r['color']};
+                                         font-size: 8px; padding: 2px 6px; border-radius: 3px;
+                                         font-weight: 600; border: 1px solid {r['color']}55;
+                                         white-space: nowrap;'>{r['month']}</span>
+                        </div>
+                    </div>"""
+                cards_html += "</div>"
+                st.markdown(cards_html, unsafe_allow_html=True)
 
                 # Footer info cards
                 total_quarantined = quarantine_data.get('overview', {}).get('total_quarantined', 0)

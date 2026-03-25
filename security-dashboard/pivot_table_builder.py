@@ -322,9 +322,9 @@ def pivot_table_builder_dashboard():
                 st.markdown("### Offline Server Details")
                 st.markdown("*Servers with a sensor that went offline within last 30 days*")
 
-                # Horizontal bar chart: OS Version distribution
+                # Vertical column bar chart: OS Version distribution
                 os_counts = so_raw_df.groupby('OS Version').size().reset_index(name='Count')
-                os_counts = os_counts.sort_values('Count', ascending=True)  # ascending so largest is at top
+                os_counts = os_counts.sort_values('Count', ascending=False)
 
                 bar_palette = [
                     '#70AD47', '#5B9BD5', '#FFC000', '#DC143C', '#ED7D31',
@@ -333,14 +333,13 @@ def pivot_table_builder_dashboard():
                 bar_colors = [bar_palette[i % len(bar_palette)] for i in range(len(os_counts))]
 
                 pie_fig = go.Figure(data=[go.Bar(
-                    x=os_counts['Count'].tolist(),
-                    y=os_counts['OS Version'].tolist(),
-                    orientation='h',
+                    x=os_counts['OS Version'].tolist(),
+                    y=os_counts['Count'].tolist(),
                     marker=dict(color=bar_colors, line=dict(color='white', width=0.5)),
                     text=os_counts['Count'].tolist(),
                     textposition='outside',
                     textfont=dict(family='Arial', size=10),
-                    hovertemplate='<b>%{y}</b><br>Count: %{x}<extra></extra>'
+                    hovertemplate='<b>%{x}</b><br>Count: %{y}<extra></extra>'
                 )])
                 pie_fig.update_layout(
                     title=dict(
@@ -348,11 +347,12 @@ def pivot_table_builder_dashboard():
                         font=dict(family='Arial', size=13, color='#333333'),
                         x=0.5, xanchor='center'
                     ),
-                    height=max(220, len(os_counts) * 45 + 80),
-                    margin=dict(t=50, b=20, l=20, r=60),
-                    xaxis=dict(title=dict(text='Count', font=dict(family='Arial', size=11)),
+                    height=360,
+                    margin=dict(t=50, b=90, l=40, r=20),
+                    xaxis=dict(tickfont=dict(family='Arial', size=10), tickangle=-30),
+                    yaxis=dict(title=dict(text='Count', font=dict(family='Arial', size=11)),
                                tickfont=dict(family='Arial', size=10)),
-                    yaxis=dict(tickfont=dict(family='Arial', size=10)),
+                    bargap=0.3,
                     plot_bgcolor='white',
                     paper_bgcolor='white'
                 )
