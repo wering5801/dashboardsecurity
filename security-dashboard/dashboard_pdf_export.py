@@ -2764,6 +2764,14 @@ def create_chart_with_pivot_logic(df, rows, columns, values, chart_type, height,
         # Create pivot table using the exact function from pivot_table_builder
         pivot_table = create_pivot_table(filtered_df, config, analysis_key)
 
+        # Strip 'Total' rows/columns added by margins=True — they appear as unwanted bars in charts
+        if pivot_table is not None and not pivot_table.empty:
+            for _rc in rows:
+                if _rc in pivot_table.columns:
+                    pivot_table = pivot_table[pivot_table[_rc].astype(str) != 'Total']
+            if 'Total' in pivot_table.columns:
+                pivot_table = pivot_table.drop(columns=['Total'])
+
         if pivot_table is not None and not pivot_table.empty:
             # Create chart using the exact function from pivot_table_builder
             chart = create_pivot_chart(pivot_table, chart_type, height, config, analysis_key)
