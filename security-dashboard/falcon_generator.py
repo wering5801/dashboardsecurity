@@ -12,6 +12,7 @@ from ticket_lifecycle_generator import generate_ticket_lifecycle_analysis, creat
 from detection_status_generator import generate_detection_status_analysis
 from quarantine_file_analysis import parse_quarantine_json, generate_quarantine_analysis, validate_quarantine_json
 from sensor_offline_analysis import parse_sensor_offline_csv, generate_sensor_offline_analysis, validate_sensor_offline_csv
+from exclusion_manager import load_exclusions, save_exclusions, add_exclusion, remove_exclusion, apply_exclusions, validate_against_raw
 import json
 
 # Dummy data generation function removed - no longer needed
@@ -694,6 +695,7 @@ def falcon_generator_dashboard():
         all_templates = []
         all_notes = []
         processed_months = []  # Track successfully processed months
+        raw_monthly_detections = {}  # Store raw file1 DataFrames keyed by month period
 
         for i, m in enumerate(month_data):
             if m['host_export_file'] and m['file1']:
@@ -711,6 +713,16 @@ def falcon_generator_dashboard():
                         all_templates.append(templates)
                         all_notes.append(data_notes)
                         processed_months.append(m['period'])  # Track this month
+
+                        # Store raw detection file (file1) for Resolution analysis
+                        # Apply exclusions so excluded endpoints are not counted in resolution verdicts
+                        try:
+                            m['file1'].seek(0)
+                            raw_det_df = pd.read_csv(m['file1'], encoding='utf-8-sig')
+                            raw_det_df = apply_exclusions(raw_det_df)
+                            raw_monthly_detections[m['period']] = raw_det_df
+                        except Exception:
+                            pass
                     else:
                         with status_container:
                             st.error(f"❌ Error processing Month {i+1} ({m['period']}). Check your CSV file encoding and format.")
@@ -724,6 +736,8 @@ def falcon_generator_dashboard():
 
             # Store processed months in session state
             st.session_state['processed_months'] = processed_months
+            # Store raw detection files for Resolution column analysis
+            st.session_state['raw_monthly_detections'] = raw_monthly_detections
 
             # Aggregate for trend analysis
             agg = {}
@@ -749,8 +763,14 @@ def falcon_generator_dashboard():
                         mime="text/csv"
                     )
 
-            # Store templates in session state for trend dashboard
-            st.session_state['three_month_trend_data'] = agg
+            # Store RAW unfiltered templates (used by Exclusion Manager to re-apply exclusions)
+            st.session_state['three_month_trend_data_raw'] = {k: v.copy() for k, v in agg.items()}
+
+            # Apply exclusions to get filtered data for analysis
+            agg_filtered = {k: apply_exclusions(v) for k, v in agg.items()}
+
+            # Store filtered templates in session state for trend dashboard
+            st.session_state['three_month_trend_data'] = agg_filtered
 
             # 🚀 AUTOMATICALLY GENERATE ANALYSIS RESULTS
             try:
@@ -758,23 +778,23 @@ def falcon_generator_dashboard():
                 actual_num_months = len(processed_months)
 
                 # Generate Host Analysis Results
-                if not agg['host_analysis'].empty:
-                    host_results = generate_host_analysis(agg['host_analysis'], actual_num_months)
+                if not agg_filtered['host_analysis'].empty:
+                    host_results = generate_host_analysis(agg_filtered['host_analysis'], actual_num_months)
                     st.session_state['host_analysis_results'] = host_results
                     st.session_state['num_months'] = actual_num_months  # Store for reference
                     with status_container:
                         st.success(f"✅ Host Analysis: {len(host_results)} analysis outputs generated for {actual_num_months} month(s)")
 
                 # Generate Detection & Severity Analysis Results
-                if not agg['detection_analysis'].empty:
-                    detection_results = generate_detection_severity_analysis(agg['detection_analysis'], actual_num_months)
+                if not agg_filtered['detection_analysis'].empty:
+                    detection_results = generate_detection_severity_analysis(agg_filtered['detection_analysis'], actual_num_months)
                     st.session_state['detection_analysis_results'] = detection_results
                     with status_container:
                         st.success(f"✅ Detection Analysis: {len(detection_results)} analysis outputs generated for {actual_num_months} month(s)")
 
                 # Generate Time-Based Analysis Results
-                if not agg['time_analysis'].empty:
-                    time_results = generate_time_analysis(agg['time_analysis'], actual_num_months)
+                if not agg_filtered['time_analysis'].empty:
+                    time_results = generate_time_analysis(agg_filtered['time_analysis'], actual_num_months)
                     st.session_state['time_analysis_results'] = time_results
                     with status_container:
                         st.success(f"✅ Time Analysis: {len(time_results)} analysis outputs generated for {actual_num_months} month(s)")
@@ -916,6 +936,108 @@ def falcon_generator_dashboard():
         else:
             with status_container:
                 st.error("❌ No valid months processed. Please check your uploads.")
+
+    # ============================================================
+    # EXCLUSION MANAGER
+    # ============================================================
+    st.markdown("---")
+    st.subheader("🚫 Data Exclusion Manager")
+    st.caption("Exclude specific records (e.g. test hostnames) from all analysis without modifying your original files. Exclusions are saved locally and persist across sessions.")
+
+    excluded = load_exclusions()
+    raw_df = st.session_state.get('three_month_trend_data_raw', {}).get('host_analysis', pd.DataFrame())
+
+    # ── Add to Exclude ──────────────────────────────────────────
+    with st.expander("➕ Add Record to Exclusion List", expanded=len(excluded) == 0):
+        st.markdown("Enter the **UniqueNo** and **Hostname** exactly as they appear in your data.")
+        col1, col2, col3 = st.columns([2, 4, 2])
+        with col1:
+            new_uno = st.text_input("UniqueNo", key="excl_add_uno", placeholder="e.g. 101")
+        with col2:
+            new_hn = st.text_input("Hostname", key="excl_add_hn", placeholder="e.g. WIN-TEST01")
+        with col3:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Add to Exclude", key="excl_add_btn", use_container_width=True):
+                if new_uno.strip() and new_hn.strip():
+                    if not raw_df.empty:
+                        found, vmsg = validate_against_raw(new_uno, new_hn, raw_df)
+                        if not found:
+                            st.warning(f"⚠️ {vmsg} — added anyway, will apply on next processing.")
+                    ok, msg = add_exclusion(new_uno, new_hn)
+                    if ok:
+                        st.success(f"✅ {msg}")
+                        st.rerun()
+                    else:
+                        st.warning(f"⚠️ {msg}")
+                else:
+                    st.error("Both UniqueNo and Hostname are required.")
+
+    # ── Current Exclusion List ───────────────────────────────────
+    excluded = load_exclusions()
+    if excluded:
+        st.markdown(f"**Currently excluded: {len(excluded)} record(s)**")
+        st.caption("Click **Re-include** to remove a record from the exclusion list and restore it to analysis.")
+
+        header_cols = st.columns([2, 4, 2])
+        header_cols[0].markdown("**UniqueNo**")
+        header_cols[1].markdown("**Hostname**")
+        header_cols[2].markdown("**Action**")
+        st.markdown("<hr style='margin:4px 0'>", unsafe_allow_html=True)
+
+        for i, e in enumerate(excluded):
+            c1, c2, c3 = st.columns([2, 4, 2])
+            c1.code(e['unique_no'])
+            c2.code(e['hostname'])
+            with c3:
+                if st.button("Re-include", key=f"excl_rm_{i}", use_container_width=True):
+                    if not raw_df.empty:
+                        found, vmsg = validate_against_raw(e['unique_no'], e['hostname'], raw_df)
+                        if found:
+                            st.info(f"✅ {vmsg} — will be restored on Update Analysis.")
+                        else:
+                            st.warning(f"⚠️ {vmsg} — removing from exclusion list anyway.")
+                    ok, msg = remove_exclusion(e['unique_no'], e['hostname'])
+                    if ok:
+                        st.success(f"✅ {msg}")
+                        st.rerun()
+    else:
+        st.info("No records excluded. Add UniqueNo + Hostname pairs above to exclude them from all analysis.")
+
+    # ── Update Analysis Button ────────────────────────────────────
+    st.markdown("---")
+    has_raw = 'three_month_trend_data_raw' in st.session_state
+    if has_raw:
+        excl_count = len(load_exclusions())
+        st.markdown(f"**Active exclusions: {excl_count} record(s).** Click below to re-run all analysis with the current exclusion list applied.")
+        if st.button("🔄 Update Analysis", type="primary", key="excl_update_btn"):
+            with st.spinner("Re-applying exclusions and regenerating analysis..."):
+                try:
+                    raw_agg = st.session_state['three_month_trend_data_raw']
+                    agg_filtered = {k: apply_exclusions(v) for k, v in raw_agg.items()}
+                    st.session_state['three_month_trend_data'] = agg_filtered
+                    actual_num_months = st.session_state.get('num_months', 1)
+
+                    if not agg_filtered['host_analysis'].empty:
+                        host_results = generate_host_analysis(agg_filtered['host_analysis'], actual_num_months)
+                        st.session_state['host_analysis_results'] = host_results
+
+                    if not agg_filtered['detection_analysis'].empty:
+                        detection_results = generate_detection_severity_analysis(agg_filtered['detection_analysis'], actual_num_months)
+                        st.session_state['detection_analysis_results'] = detection_results
+
+                    if not agg_filtered['time_analysis'].empty:
+                        time_results = generate_time_analysis(agg_filtered['time_analysis'], actual_num_months)
+                        st.session_state['time_analysis_results'] = time_results
+
+                    raw_count = len(raw_agg.get('host_analysis', pd.DataFrame()))
+                    filtered_count = len(agg_filtered.get('host_analysis', pd.DataFrame()))
+                    removed = raw_count - filtered_count
+                    st.success(f"✅ Analysis updated. {removed} record(s) excluded. Navigate to Main Dashboard Report to view results.")
+                except Exception as e:
+                    st.error(f"❌ Update failed: {str(e)}")
+    else:
+        st.info("Process your data first using 'Process All Months and Generate Templates', then use Update Analysis to apply exclusions.")
+
 
 def find_compositeid_column(df, file_name):
     """Find CompositeID column with different case variations"""
