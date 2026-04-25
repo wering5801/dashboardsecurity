@@ -695,7 +695,8 @@ def falcon_generator_dashboard():
         all_templates = []
         all_notes = []
         processed_months = []  # Track successfully processed months
-        raw_monthly_detections = {}  # Store raw file1 DataFrames keyed by month period
+        raw_monthly_detections = {}           # Exclusion-filtered file1 DataFrames keyed by month period
+        raw_monthly_detections_unfiltered = {}  # Unfiltered versions — needed to re-apply exclusions on Update Analysis
 
         for i, m in enumerate(month_data):
             if m['host_export_file'] and m['file1']:
@@ -715,12 +716,12 @@ def falcon_generator_dashboard():
                         processed_months.append(m['period'])  # Track this month
 
                         # Store raw detection file (file1) for Resolution analysis
-                        # Apply exclusions so excluded endpoints are not counted in resolution verdicts
+                        # Keep both unfiltered (for re-applying exclusions later) and filtered versions
                         try:
                             m['file1'].seek(0)
                             raw_det_df = pd.read_csv(m['file1'], encoding='utf-8-sig')
-                            raw_det_df = apply_exclusions(raw_det_df)
-                            raw_monthly_detections[m['period']] = raw_det_df
+                            raw_monthly_detections_unfiltered[m['period']] = raw_det_df.copy()
+                            raw_monthly_detections[m['period']] = apply_exclusions(raw_det_df)
                         except Exception:
                             pass
                     else:
@@ -736,8 +737,9 @@ def falcon_generator_dashboard():
 
             # Store processed months in session state
             st.session_state['processed_months'] = processed_months
-            # Store raw detection files for Resolution column analysis
+            # Store raw detection files for Resolution column analysis (filtered + unfiltered)
             st.session_state['raw_monthly_detections'] = raw_monthly_detections
+            st.session_state['raw_monthly_detections_unfiltered'] = raw_monthly_detections_unfiltered
 
             # Aggregate for trend analysis
             agg = {}
@@ -827,6 +829,10 @@ def falcon_generator_dashboard():
                             with status_container:
                                 st.info(f"📝 Generated placeholder ticket data: {len(ticket_df)} records")
 
+                        # Store raw ticket data (pre-exclusion) so Update Analysis can re-apply exclusions
+                        st.session_state['raw_ticket_df'] = ticket_df.copy()
+                        # Apply exclusions — works if ticket CSV has UniqueNo + Hostname columns
+                        ticket_df = apply_exclusions(ticket_df)
                         # Generate ticket lifecycle analysis
                         ticket_results = generate_ticket_lifecycle_analysis(ticket_df, actual_num_months)
                         st.session_state['ticket_lifecycle_results'] = ticket_results
@@ -1028,6 +1034,20 @@ def falcon_generator_dashboard():
                     if not agg_filtered['time_analysis'].empty:
                         time_results = generate_time_analysis(agg_filtered['time_analysis'], actual_num_months)
                         st.session_state['time_analysis_results'] = time_results
+
+                    # Re-apply exclusions to ticket data if raw version was stored
+                    raw_ticket_df = st.session_state.get('raw_ticket_df')
+                    if raw_ticket_df is not None and not raw_ticket_df.empty:
+                        filtered_ticket_df = apply_exclusions(raw_ticket_df)
+                        ticket_results = generate_ticket_lifecycle_analysis(filtered_ticket_df, actual_num_months)
+                        st.session_state['ticket_lifecycle_results'] = ticket_results
+
+                    # Re-apply exclusions to raw monthly detections (used for Resolution analysis)
+                    raw_monthly_unfiltered = st.session_state.get('raw_monthly_detections_unfiltered', {})
+                    if raw_monthly_unfiltered:
+                        st.session_state['raw_monthly_detections'] = {
+                            m: apply_exclusions(df) for m, df in raw_monthly_unfiltered.items()
+                        }
 
                     raw_count = len(raw_agg.get('host_analysis', pd.DataFrame()))
                     filtered_count = len(agg_filtered.get('host_analysis', pd.DataFrame()))
