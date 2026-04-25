@@ -2804,10 +2804,10 @@ def apply_pdf_chart_styling(chart, analysis_key=None):
     existing_xaxis_title = chart.layout.xaxis.title.text if chart.layout.xaxis.title else None
     existing_yaxis_title = chart.layout.yaxis.title.text if chart.layout.yaxis.title else None
 
-    # Add specific x-axis titles for B.5 and B.6
+    # Add specific x-axis titles for tactic/technique charts
     if analysis_key == 'tactics_by_severity':
         existing_xaxis_title = 'Tactic'
-    elif analysis_key == 'technique_by_severity_b6':
+    elif analysis_key in ('technique_by_severity_b6', 'technique_by_severity_c6'):
         existing_xaxis_title = 'Technique'
 
     # Determine if this is a tactic/technique chart (many legend items — needs compact legend)
