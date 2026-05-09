@@ -6,6 +6,7 @@ Developed by Izami Ariff © 2025
 
 import streamlit as st
 import hashlib
+import hmac
 import os
 from datetime import datetime, timedelta
 
@@ -18,23 +19,41 @@ from datetime import datetime, timedelta
 DEFAULT_USERNAME = os.getenv("DASHBOARD_USERNAME", "admin")
 DEFAULT_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "testpswd")  # Default for local testing
 
+# Optional: pre-computed password hash (preferred over plaintext env var).
+# If provided, takes precedence over DASHBOARD_PASSWORD.
+# Generate with: python -c "from auth import hash_password; print(hash_password('yourpass'))"
+DASHBOARD_PASSWORD_HASH = os.getenv("DASHBOARD_PASSWORD_HASH", "")
+
+# Salt for password hashing. Override via env in production for stronger protection.
+PASSWORD_SALT = os.getenv("DASHBOARD_PASSWORD_SALT", "falcon-dashboard-static-salt-v1").encode()
+
+# PBKDF2 iteration count (OWASP-recommended baseline for SHA-256).
+PBKDF2_ITERATIONS = 200_000
+
 # Session timeout (in minutes)
 SESSION_TIMEOUT_MINUTES = 60
 
 # Warning threshold (80% of session timeout)
 SESSION_WARNING_THRESHOLD = SESSION_TIMEOUT_MINUTES * 0.8  # 48 minutes
 
+# Brute-force protection
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_LOCKOUT_MINUTES = 15
+
 # ==============================================
 # PASSWORD HASHING
 # ==============================================
 
 def hash_password(password: str) -> str:
-    """Hash password using SHA-256"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash password using PBKDF2-HMAC-SHA256 with a salt and key stretching."""
+    derived = hashlib.pbkdf2_hmac(
+        "sha256", password.encode(), PASSWORD_SALT, PBKDF2_ITERATIONS
+    )
+    return derived.hex()
 
 def verify_password(input_password: str, stored_password_hash: str) -> bool:
-    """Verify password against stored hash"""
-    return hash_password(input_password) == stored_password_hash
+    """Verify password against stored hash using constant-time comparison."""
+    return hmac.compare_digest(hash_password(input_password), stored_password_hash)
 
 # ==============================================
 # SESSION MANAGEMENT
@@ -50,6 +69,10 @@ def init_session_state():
         st.session_state['login_time'] = None
     if 'last_activity' not in st.session_state:
         st.session_state['last_activity'] = None
+    if 'failed_login_attempts' not in st.session_state:
+        st.session_state['failed_login_attempts'] = 0
+    if 'lockout_until' not in st.session_state:
+        st.session_state['lockout_until'] = None
 
 def is_session_valid() -> bool:
     """Check if current session is still valid (not timed out)"""
@@ -76,6 +99,30 @@ def login(username: str):
     st.session_state['username'] = username
     st.session_state['login_time'] = datetime.now()
     st.session_state['last_activity'] = datetime.now()
+    st.session_state['failed_login_attempts'] = 0
+    st.session_state['lockout_until'] = None
+
+
+def _is_locked_out() -> bool:
+    """Return True if the current session is in a brute-force lockout window."""
+    lockout_until = st.session_state.get('lockout_until')
+    if lockout_until and datetime.now() < lockout_until:
+        return True
+    if lockout_until and datetime.now() >= lockout_until:
+        # Lockout expired — reset counter.
+        st.session_state['failed_login_attempts'] = 0
+        st.session_state['lockout_until'] = None
+    return False
+
+
+def _register_failed_attempt():
+    """Increment failed-attempt counter and trigger a lockout if threshold reached."""
+    attempts = st.session_state.get('failed_login_attempts', 0) + 1
+    st.session_state['failed_login_attempts'] = attempts
+    if attempts >= MAX_LOGIN_ATTEMPTS:
+        st.session_state['lockout_until'] = (
+            datetime.now() + timedelta(minutes=LOGIN_LOCKOUT_MINUTES)
+        )
 
 def logout():
     """Log out user and clear session"""
@@ -169,13 +216,28 @@ def show_login_page():
                 submit_button = st.form_submit_button("🔐 Login", use_container_width=True)
 
             if submit_button:
-                if authenticate_user(username, password):
+                if _is_locked_out():
+                    remaining = st.session_state['lockout_until'] - datetime.now()
+                    minutes_left = max(1, int(remaining.total_seconds() // 60) + 1)
+                    st.error(
+                        f"❌ Too many failed attempts. Try again in ~{minutes_left} minute(s)."
+                    )
+                elif authenticate_user(username, password):
                     login(username)
-                    st.success(f"✅ Welcome, {username}!")
+                    st.success("✅ Welcome!")
                     st.balloons()
                     st.rerun()
                 else:
-                    st.error("❌ Invalid username or password")
+                    _register_failed_attempt()
+                    attempts_left = max(
+                        0, MAX_LOGIN_ATTEMPTS - st.session_state.get('failed_login_attempts', 0)
+                    )
+                    if attempts_left == 0:
+                        st.error(
+                            f"❌ Invalid credentials. Account locked for {LOGIN_LOCKOUT_MINUTES} minute(s)."
+                        )
+                    else:
+                        st.error("❌ Invalid username or password")
 
         # Information footer
         st.markdown("---")
@@ -192,10 +254,18 @@ def authenticate_user(username: str, password: str) -> bool:
     - Use environment variables for credentials
     """
 
-    # For now, using default credentials
-    # In production, use hashed passwords and secure storage
-    if username == DEFAULT_USERNAME and password == DEFAULT_PASSWORD:
-        return True
+    # Compare username in constant time to avoid timing-based user enumeration.
+    username_ok = hmac.compare_digest(
+        (username or "").encode(), DEFAULT_USERNAME.encode()
+    )
+
+    # Prefer pre-computed hash from env; fall back to hashing the configured plaintext
+    # password (preserves existing DASHBOARD_PASSWORD-based deployments).
+    expected_hash = DASHBOARD_PASSWORD_HASH or hash_password(DEFAULT_PASSWORD)
+    password_ok = verify_password(password or "", expected_hash)
+
+    # Always evaluate both checks before returning to avoid short-circuit timing leaks.
+    return username_ok and password_ok
 
     # Example: Add more users
     # USERS = {
@@ -204,8 +274,6 @@ def authenticate_user(username: str, password: str) -> bool:
     #     "manager": hash_password("ManagerPass2026")
     # }
     # return username in USERS and verify_password(password, USERS[username])
-
-    return False
 
 def show_logout_button():
     """Display logout button in sidebar with session expiration warning"""
