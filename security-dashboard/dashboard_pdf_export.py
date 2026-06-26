@@ -694,7 +694,6 @@ def render_capture_modal():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PNG to PDF Converter - Falcon Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"><\\/script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -928,55 +927,80 @@ def render_capture_modal():
             reader.readAsDataURL(file);
         }
 
+        // Load jsPDF dynamically — try two CDNs, return Promise<boolean>
+        function loadJsPDF() {
+            if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(true);
+            const cdns = [
+                'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+                'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js'
+            ];
+            function tryLoad(index) {
+                if (index >= cdns.length) return Promise.resolve(false);
+                return new Promise((resolve) => {
+                    const s = document.createElement('script');
+                    s.src = cdns[index];
+                    s.onload = () => resolve(window.jspdf && window.jspdf.jsPDF ? true : false);
+                    s.onerror = () => resolve(false);
+                    document.head.appendChild(s);
+                }).then((ok) => ok ? true : tryLoad(index + 1));
+            }
+            return tryLoad(0);
+        }
+
+        // Fallback: use browser print dialog (always works, user saves as PDF)
+        function printImageAsPDF() {
+            const ts = new Date().toISOString().slice(0,10);
+            const win = window.open('', '_blank');
+            win.document.write('<!DOCTYPE html><html><head><title>Falcon Dashboard ' + ts + '<\\/title>' +
+                '<style>@page{margin:0;size:auto;}*{margin:0;padding:0;}body{background:#fff;}' +
+                'img{display:block;width:100%;height:auto;}<\\/style>' +
+                '<\\/head><body><img src="' + currentImage.src + '">' +
+                '<script>window.onload=function(){window.print();}<\\/script><\\/body><\\/html>');
+            win.document.close();
+            showStatus('Print dialog opened — choose "Save as PDF" in your printer list.');
+        }
+
         convertBtn.addEventListener('click', () => {
             if (!currentImage) return;
-            if (!window.jspdf) {
-                showStatus('PDF library not loaded. Check your internet connection and refresh.', true);
-                return;
-            }
-            const { jsPDF } = window.jspdf;
-            showStatus('Converting to PDF...');
+            convertBtn.disabled = true;
+            showStatus('Loading PDF library…');
 
-            const imgWidth = currentImage.width;
-            const imgHeight = currentImage.height;
-            const pxToMm = 25.4 / 96;
-            let pdfWidth = imgWidth * pxToMm;
-            let pdfHeight = imgHeight * pxToMm;
+            loadJsPDF().then((loaded) => {
+                convertBtn.disabled = false;
+                if (!loaded) {
+                    // CDN unavailable — fall back to browser print
+                    showStatus('PDF library unavailable — opening print dialog (choose "Save as PDF").');
+                    printImageAsPDF();
+                    return;
+                }
+                const { jsPDF } = window.jspdf;
+                showStatus('Converting to PDF…');
 
-            // Max A1 size for large captures
-            const maxWidth = 594;
-            const maxHeight = 841;
+                const imgWidth = currentImage.width;
+                const imgHeight = currentImage.height;
+                const pxToMm = 25.4 / 96;
+                let pdfWidth = imgWidth * pxToMm;
+                let pdfHeight = imgHeight * pxToMm;
 
-            if (pdfWidth > maxWidth) {
-                const scale = maxWidth / pdfWidth;
-                pdfWidth = maxWidth;
-                pdfHeight = pdfHeight * scale;
-            }
-            if (pdfHeight > maxHeight) {
-                const scale = maxHeight / pdfHeight;
-                pdfHeight = maxHeight;
-                pdfWidth = pdfWidth * scale;
-            }
+                const maxWidth = 594;
+                const maxHeight = 841;
+                if (pdfWidth > maxWidth) { const s = maxWidth / pdfWidth; pdfWidth = maxWidth; pdfHeight *= s; }
+                if (pdfHeight > maxHeight) { const s = maxHeight / pdfHeight; pdfHeight = maxHeight; pdfWidth *= s; }
+                pdfWidth = Math.max(pdfWidth, 50);
+                pdfHeight = Math.max(pdfHeight, 50);
 
-            pdfWidth = Math.max(pdfWidth, 50);
-            pdfHeight = Math.max(pdfHeight, 50);
+                const orientation = pdfWidth > pdfHeight ? 'landscape' : 'portrait';
+                const pdf = new jsPDF({ orientation, unit: 'mm', format: [pdfWidth, pdfHeight] });
+                pdf.addImage(currentImage.src, 'PNG', 0, 0, pdfWidth, pdfHeight);
 
-            const orientation = pdfWidth > pdfHeight ? 'landscape' : 'portrait';
-            const pdf = new jsPDF({
-                orientation: orientation,
-                unit: 'mm',
-                format: [pdfWidth, pdfHeight]
+                if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
+                pdfBlobUrl = URL.createObjectURL(pdf.output('blob'));
+
+                pdfPreview.src = pdfBlobUrl;
+                pdfPreviewSection.classList.add('active');
+                downloadBtn.disabled = false;
+                showStatus('PDF created! Preview above. Click "Download PDF" to save.');
             });
-
-            pdf.addImage(currentImage.src, 'PNG', 0, 0, pdfWidth, pdfHeight);
-
-            if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
-            pdfBlobUrl = URL.createObjectURL(pdf.output('blob'));
-
-            pdfPreview.src = pdfBlobUrl;
-            pdfPreviewSection.classList.add('active');
-            downloadBtn.disabled = false;
-            showStatus('PDF created! Preview above. Click "Download PDF" to save.');
         });
 
         downloadBtn.addEventListener('click', () => {
