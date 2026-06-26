@@ -647,7 +647,7 @@ def render_executive_summary(ticket_data, host_data, detection_data, time_data, 
 
 def render_capture_modal():
     """
-    Screen capture tool - opens PNG to PDF converter in new tab
+    Screen capture tool - inline PNG to PDF converter
     User captures with GoFullPage, then uploads PNG to convert
     """
     import streamlit.components.v1 as components
@@ -657,43 +657,13 @@ def render_capture_modal():
     st.markdown("""
     1. Use **GoFullPage** extension to capture
     2. Save as **PNG** file
-    3. Click button below to open converter
-    4. Upload PNG → Preview → Download PDF
+    3. Upload PNG below → Preview → Convert → Download PDF
     """)
 
-    # Button to open PNG to PDF converter in new tab
+    # Inline PNG to PDF converter — renders directly inside this component.
+    # No new tab / window.open / blob navigation / document.write, all of which
+    # get blocked or are discouraged inside Streamlit's sandboxed component iframe.
     components.html("""
-    <style>
-        .open-btn {
-            background: linear-gradient(135deg, #00d4ff, #0099cc);
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 14px;
-            width: 100%;
-            margin: 10px 0;
-        }
-        .open-btn:hover {
-            background: linear-gradient(135deg, #00e5ff, #00aadd);
-            transform: translateY(-1px);
-        }
-    </style>
-
-    <button class="open-btn" onclick="openConverter()">
-        📄 Open PNG to PDF Converter
-    </button>
-
-    <script>
-    function openConverter() {
-        const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PNG to PDF Converter - Falcon Dashboard</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -813,8 +783,7 @@ def render_capture_modal():
         }
         .status.error { color: #ff6b6b; }
     </style>
-</head>
-<body>
+
     <div class="container">
         <h1>📄 PNG to PDF Converter</h1>
 
@@ -927,12 +896,13 @@ def render_capture_modal():
             reader.readAsDataURL(file);
         }
 
-        // Load jsPDF dynamically — try two CDNs, return Promise<boolean>
+        // Load jsPDF on demand — try several CDNs, resolve to a boolean.
         function loadJsPDF() {
             if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(true);
             const cdns = [
-                'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-                'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js'
+                'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js',
+                'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js',
+                'https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js'
             ];
             function tryLoad(index) {
                 if (index >= cdns.length) return Promise.resolve(false);
@@ -947,24 +917,31 @@ def render_capture_modal():
             return tryLoad(0);
         }
 
-        // Fallback: use browser print dialog (always works, user saves as PDF)
+        // Fallback when jsPDF can't be fetched: print the image via a hidden
+        // iframe and let the user pick "Save as PDF". No popup, no document.write.
         function printImageAsPDF() {
-            const ts = new Date().toISOString().slice(0,10);
-            const win = window.open('', '_blank');
-            // Use string concatenation for closing tag so the blob HTML parser
-            // never sees </script> literally inside this script block
-            const sc = '<scr' + 'ipt>';
-            const esc = '<' + '/scr' + 'ipt>';
-            win.document.write(
-                '<!DOCTYPE html><html><head><title>Falcon Dashboard ' + ts + '</title>' +
-                '<style>@page{margin:0;size:auto;}*{margin:0;padding:0;}body{background:#fff;}' +
-                'img{display:block;width:100%;height:auto;}</style>' +
-                '</head><body><img src="' + currentImage.src + '">' +
-                sc + 'window.onload=function(){window.print();}' + esc +
-                '</body></html>'
-            );
-            win.document.close();
-            showStatus('Print dialog opened — choose "Save as PDF" in your printer list.');
+            const frame = document.createElement('iframe');
+            frame.style.position = 'fixed';
+            frame.style.right = '0';
+            frame.style.bottom = '0';
+            frame.style.width = '0';
+            frame.style.height = '0';
+            frame.style.border = '0';
+            document.body.appendChild(frame);
+            const fdoc = frame.contentDocument || frame.contentWindow.document;
+            fdoc.body.style.margin = '0';
+            const img = fdoc.createElement('img');
+            img.style.width = '100%';
+            img.style.height = 'auto';
+            img.style.display = 'block';
+            img.onload = () => {
+                frame.contentWindow.focus();
+                frame.contentWindow.print();
+                setTimeout(() => frame.remove(), 1000);
+            };
+            img.src = currentImage.src;
+            fdoc.body.appendChild(img);
+            showStatus('Print dialog opened — choose "Save as PDF" as the printer.');
         }
 
         convertBtn.addEventListener('click', () => {
@@ -1037,29 +1014,10 @@ def render_capture_modal():
             status.textContent = message;
             status.className = 'status' + (isError ? ' error' : '');
         }
-    <\\/script>
-</body>
-</html>`;
-
-        // Open in a new tab and write the HTML directly.
-        // NOTE: do NOT use a blob: URL here — Streamlit renders this button
-        // inside a sandboxed iframe (no allow-popups-to-escape-sandbox), and
-        // Chrome blocks navigating a new tab to a blob: URL from such a frame
-        // ("Not allowed to navigate top frame to blob URL"), so the click would
-        // silently do nothing. Writing into a blank about:blank tab works.
-        const win = window.open('', '_blank');
-        if (win) {
-            win.document.open();
-            win.document.write(html);
-            win.document.close();
-        } else {
-            alert('Please allow pop-ups for this site, then click the button again.');
-        }
-    }
     </script>
-    """, height=70)
+    """, height=900, scrolling=True)
 
-    st.caption("💡 Opens in a new browser tab")
+    st.caption("💡 Upload a PNG, click Convert to PDF, then Download — all in this panel.")
 
     if st.button("✖️ Close", key="close_capture_modal", use_container_width=True):
         st.session_state.show_capture_modal = False
