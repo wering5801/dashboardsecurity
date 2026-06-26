@@ -951,11 +951,18 @@ def render_capture_modal():
         function printImageAsPDF() {
             const ts = new Date().toISOString().slice(0,10);
             const win = window.open('', '_blank');
-            win.document.write('<!DOCTYPE html><html><head><title>Falcon Dashboard ' + ts + '<\\/title>' +
+            // Use string concatenation for closing tag so the blob HTML parser
+            // never sees </script> literally inside this script block
+            const sc = '<scr' + 'ipt>';
+            const esc = '<' + '/scr' + 'ipt>';
+            win.document.write(
+                '<!DOCTYPE html><html><head><title>Falcon Dashboard ' + ts + '</title>' +
                 '<style>@page{margin:0;size:auto;}*{margin:0;padding:0;}body{background:#fff;}' +
-                'img{display:block;width:100%;height:auto;}<\\/style>' +
-                '<\\/head><body><img src="' + currentImage.src + '">' +
-                '<script>window.onload=function(){window.print();}<\\/script><\\/body><\\/html>');
+                'img{display:block;width:100%;height:auto;}</style>' +
+                '</head><body><img src="' + currentImage.src + '">' +
+                sc + 'window.onload=function(){window.print();}' + esc +
+                '</body></html>'
+            );
             win.document.close();
             showStatus('Print dialog opened — choose "Save as PDF" in your printer list.');
         }
