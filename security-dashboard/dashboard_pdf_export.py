@@ -1041,10 +1041,20 @@ def render_capture_modal():
 </body>
 </html>`;
 
-        // Open in new tab using blob URL
-        const blob = new Blob([html], {type: 'text/html'});
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
+        // Open in a new tab and write the HTML directly.
+        // NOTE: do NOT use a blob: URL here — Streamlit renders this button
+        // inside a sandboxed iframe (no allow-popups-to-escape-sandbox), and
+        // Chrome blocks navigating a new tab to a blob: URL from such a frame
+        // ("Not allowed to navigate top frame to blob URL"), so the click would
+        // silently do nothing. Writing into a blank about:blank tab works.
+        const win = window.open('', '_blank');
+        if (win) {
+            win.document.open();
+            win.document.write(html);
+            win.document.close();
+        } else {
+            alert('Please allow pop-ups for this site, then click the button again.');
+        }
     }
     </script>
     """, height=70)
