@@ -165,24 +165,45 @@ def apply_dashboard_css():
             padding: 0px 6px !important;
         }
 
-        /* Sidebar collapse/expand toggle button — styled icon */
-        [data-testid="collapsedControl"] {
+        /* ---- Sidebar collapse / expand toggle ----------------------------
+           Make the toggle ALWAYS visible (Streamlit fades it until hover, so
+           once the sidebar is collapsed the expand arrow is easy to lose).
+           Covers both the legacy and current (1.4x+) Streamlit test ids. */
+        [data-testid="collapsedControl"],
+        [data-testid="stSidebarCollapsedControl"],
+        [data-testid="stExpandSidebarButton"] {
             background-color: #1f4e5f !important;
             border-radius: 50% !important;
-            width: 28px !important;
-            height: 28px !important;
+            width: 32px !important;
+            height: 32px !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
             border: 2px solid #ffffff !important;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.25) !important;
-            top: 50% !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.35) !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            top: 12px !important;
+            left: 12px !important;
+            z-index: 999999 !important;
         }
-        [data-testid="collapsedControl"] svg {
+        [data-testid="collapsedControl"] svg,
+        [data-testid="stSidebarCollapsedControl"] svg,
+        [data-testid="stExpandSidebarButton"] svg,
+        [data-testid="stSidebarCollapseButton"] svg {
             stroke: #ffffff !important;
-            fill: none !important;
-            width: 14px !important;
-            height: 14px !important;
+            fill: #ffffff !important;
+            width: 16px !important;
+            height: 16px !important;
+        }
+        /* The "«" collapse button inside the open sidebar — keep it visible
+           (not hover-only) and give it a clear contrasting chip. */
+        [data-testid="stSidebarCollapseButton"],
+        [data-testid="stSidebarCollapseButton"] button {
+            opacity: 1 !important;
+            visibility: visible !important;
+            background-color: #1f4e5f !important;
+            border-radius: 6px !important;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -741,9 +762,21 @@ def render_capture_modal():
             background: #fff;
             border-radius: 10px;
             width: 100%;
-            height: 400px;
+            min-height: 200px;
+            max-height: 420px;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: auto;
         }
-        #pdfPreview { width: 100%; height: 100%; border: none; border-radius: 10px; }
+        #pdfPreview {
+            max-width: 100%;
+            max-height: 400px;
+            object-fit: contain;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+        }
         .buttons {
             display: flex;
             gap: 15px;
@@ -805,10 +838,11 @@ def render_capture_modal():
 
         <div class="pdf-preview-section" id="pdfPreviewSection">
             <div class="preview-header">
-                <span class="preview-title">PDF Preview</span>
+                <span class="preview-title">PDF Preview (page 1)</span>
+                <span class="file-info">Ready to download</span>
             </div>
             <div class="pdf-preview-container">
-                <iframe id="pdfPreview"></iframe>
+                <img id="pdfPreview" alt="PDF page preview">
             </div>
         </div>
 
@@ -980,7 +1014,10 @@ def render_capture_modal():
                 if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
                 pdfBlobUrl = URL.createObjectURL(pdf.output('blob'));
 
-                pdfPreview.src = pdfBlobUrl;
+                // Chrome won't render a blob: PDF inside this sandboxed iframe,
+                // so preview the rendered page as an image (same content as the
+                // single-page PDF). The real PDF blob is used for download.
+                pdfPreview.src = currentImage.src;
                 pdfPreviewSection.classList.add('active');
                 downloadBtn.disabled = false;
                 showStatus('PDF created! Preview above. Click "Download PDF" to save.');
