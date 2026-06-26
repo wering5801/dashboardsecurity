@@ -694,7 +694,7 @@ def render_capture_modal():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PNG to PDF Converter - Falcon Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/jspdf@4.2.0/dist/jspdf.umd.min.js"><\\/script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"><\\/script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -729,8 +729,8 @@ def render_capture_modal():
             background: rgba(0, 212, 255, 0.2);
             border-color: #00ff88;
         }
-        .upload-icon { font-size: 48px; margin-bottom: 15px; }
-        .upload-text { font-size: 1.1rem; color: #ccc; }
+        .upload-icon { font-size: 48px; margin-bottom: 15px; pointer-events: none; }
+        .upload-text { font-size: 1.1rem; color: #ccc; pointer-events: none; }
         #fileInput { display: none; }
         .preview-section {
             display: none;
@@ -854,7 +854,6 @@ def render_capture_modal():
     </div>
 
     <script>
-        const { jsPDF } = window.jspdf;
         const uploadSection = document.getElementById('uploadSection');
         const fileInput = document.getElementById('fileInput');
         const previewSection = document.getElementById('previewSection');
@@ -870,19 +869,33 @@ def render_capture_modal():
         let currentImage = null;
         let pdfBlobUrl = null;
 
+        // Prevent browser from opening dropped files globally
+        document.addEventListener('dragover', (e) => e.preventDefault());
+        document.addEventListener('drop', (e) => e.preventDefault());
+
         uploadSection.addEventListener('click', () => fileInput.click());
 
-        uploadSection.addEventListener('dragover', (e) => {
+        uploadSection.addEventListener('dragenter', (e) => {
             e.preventDefault();
             uploadSection.classList.add('dragover');
         });
 
-        uploadSection.addEventListener('dragleave', () => {
-            uploadSection.classList.remove('dragover');
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', (e) => {
+            // Only remove highlight when leaving the uploadSection itself, not a child
+            if (!uploadSection.contains(e.relatedTarget)) {
+                uploadSection.classList.remove('dragover');
+            }
         });
 
         uploadSection.addEventListener('drop', (e) => {
             e.preventDefault();
+            e.stopPropagation();
             uploadSection.classList.remove('dragover');
             const file = e.dataTransfer.files[0];
             if (file && file.type.startsWith('image/')) {
@@ -917,6 +930,11 @@ def render_capture_modal():
 
         convertBtn.addEventListener('click', () => {
             if (!currentImage) return;
+            if (!window.jspdf) {
+                showStatus('PDF library not loaded. Check your internet connection and refresh.', true);
+                return;
+            }
+            const { jsPDF } = window.jspdf;
             showStatus('Converting to PDF...');
 
             const imgWidth = currentImage.width;
