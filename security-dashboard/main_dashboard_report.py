@@ -583,7 +583,7 @@ def render_ticket_lifecycle_section(chart_height, show_data_tables, show_insight
                     )
 
                     # Apply styling
-                    styled_df = display_df.style.applymap(style_severity_columns, subset=['Critical', 'High', 'Medium', 'Low'])
+                    styled_df = display_df.style.map(style_severity_columns, subset=['Critical', 'High', 'Medium', 'Low'])
                     st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
             # Create clustered bar chart (like Excel Clustered Column)
