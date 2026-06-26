@@ -198,6 +198,17 @@ def generate_time_analysis(time_template_df, num_months=1):
     print(f"[Time Analysis Generator] Clean data: {len(df)} valid records with parsed timestamps")
     print(f"[Time Analysis Generator] Unique months detected from timestamps: {list(unique_months_detected)}")
 
+    # Filter to only include records whose parsed date falls within the user-selected periods.
+    # Some April files may contain records with March timestamps — those are invalid for the report.
+    if has_period:
+        unique_periods_set = set(df['Period'].dropna().astype(str).str.strip().unique())
+        before_filter = len(df)
+        df = df[df['Month'].isin(unique_periods_set)].copy()
+        removed = before_filter - len(df)
+        if removed > 0:
+            print(f"[Time Analysis Generator] Filtered out {removed} record(s) with dates outside expected month range (valid: {unique_periods_set})")
+        print(f"[Time Analysis Generator] Months after period filter: {df['Month'].unique().tolist()}")
+
     # Generate all analysis results
     results = {
         'daily_trends': generate_daily_trends(df, num_months),

@@ -544,9 +544,22 @@ def render_executive_summary(ticket_data, host_data, detection_data, time_data, 
             + (f"<strong>{_pa_latest_ip}</strong> detection(s) remain under investigation and will be reported once resolved. " if _pa_latest_ip > 0 else "")
         )
     elif _pa_has_res and _pa_latest_tp > 0:
+        # Get TP file names for the professional assessment
+        _pa_tp_fnames = []
+        _pa_raw_m = st.session_state.get('raw_monthly_detections', {})
+        if _pa_raw_m and _pa_res_latest and _pa_res_latest in _pa_raw_m:
+            _pa_rm_df = _pa_raw_m[_pa_res_latest]
+            if isinstance(_pa_rm_df, pd.DataFrame) and not _pa_rm_df.empty and 'FileName' in _pa_rm_df.columns and 'Resolution' in _pa_rm_df.columns:
+                _pa_rm_ip = _pa_rm_df['Status'].astype(str).str.strip().str.lower() == 'in_progress' if 'Status' in _pa_rm_df.columns else pd.Series([False]*len(_pa_rm_df), index=_pa_rm_df.index)
+                _pa_rm_tp = _pa_rm_df['Resolution'].astype(str).str.strip().str.lower() == 'true_positive'
+                _pa_tp_rows = _pa_rm_df[_pa_rm_tp & ~_pa_rm_ip]
+                _pa_tp_fnames = [f for f in _pa_tp_rows['FileName'].dropna().unique().tolist() if str(f).strip() not in ('', 'nan', 'none')]
+        _pa_fn_display = ', '.join(_pa_tp_fnames[:5]) + ('...' if len(_pa_tp_fnames) > 5 else '') if _pa_tp_fnames else None
         _pa_parts.append(
             f"For <strong>{_pa_res_latest}</strong>, <strong>{_pa_latest_tp} true positive</strong> threat(s) were confirmed out of "
-            f"{_pa_rs.get('total', 0)} total detection(s). The assessment below focuses on these confirmed threats. "
+            f"{_pa_rs.get('total', 0)} total detection(s)"
+            + (f" — file(s) involved: <strong>{_pa_fn_display}</strong>" if _pa_fn_display else "")
+            + ". "
             + (f"<strong>{_pa_latest_ip}</strong> detection(s) are still under investigation. " if _pa_latest_ip > 0 else "")
         )
 
@@ -1148,6 +1161,22 @@ def falcon_dashboard_pdf_layout():
         include_executive_summary = st.checkbox("Executive Summary Report", value=False, help="Include professional executive summary with key findings and recommendations")
 
         st.markdown("---")
+        st.markdown("### 🎯 Analysis Filter")
+        _raw_monthly_check = st.session_state.get('raw_monthly_detections', {})
+        _has_resolution_data = any(
+            isinstance(df, pd.DataFrame) and not df.empty and 'Resolution' in df.columns
+            for df in _raw_monthly_check.values()
+        )
+        include_tp_only = st.checkbox(
+            "True Positive Only Analysis",
+            value=False,
+            help="When enabled, Detection and Time-Based analysis sections show only confirmed true positive detections.",
+            disabled=not _has_resolution_data
+        )
+        if not _has_resolution_data:
+            st.caption("💡 True Positive filter requires Resolution column in detection files.")
+
+        st.markdown("---")
         with st.expander("📊 How Percentages Are Calculated", expanded=False):
             st.markdown("""
 **Detection Volume Trend (%)**
@@ -1175,6 +1204,50 @@ def falcon_dashboard_pdf_layout():
 
         if not ticket_data:
             st.caption("💡 Ticket Lifecycle Analysis is disabled (no ticket data available)")
+
+    # ============================================
+    # TRUE POSITIVE ONLY FILTER (applied before rendering)
+    # ============================================
+    if include_tp_only:
+        st.markdown(
+            '<div style="background:#fff7ed;border-left:4px solid #c2410c;border-radius:4px;'
+            'padding:8px 14px;margin-bottom:12px;font-size:12px;color:#7c2d12;">'
+            '<strong>🎯 True Positive Only Mode</strong> — Detection and Time-Based Analysis are filtered '
+            'to confirmed true positive detections only.</div>',
+            unsafe_allow_html=True
+        )
+        # Collect TP UniqueNos from raw_monthly_detections
+        _tp_uniquenos = set()
+        _raw_monthly_tp = st.session_state.get('raw_monthly_detections', {})
+        for _tp_month, _tp_rdf in _raw_monthly_tp.items():
+            if isinstance(_tp_rdf, pd.DataFrame) and not _tp_rdf.empty and 'UniqueNo' in _tp_rdf.columns and 'Resolution' in _tp_rdf.columns:
+                _tp_ip = _tp_rdf['Status'].astype(str).str.strip().str.lower() == 'in_progress' if 'Status' in _tp_rdf.columns else pd.Series([False]*len(_tp_rdf), index=_tp_rdf.index)
+                _tp_res = _tp_rdf['Resolution'].astype(str).str.strip().str.lower() == 'true_positive'
+                _tp_uniquenos.update(_tp_rdf[_tp_res & ~_tp_ip]['UniqueNo'].dropna().tolist())
+
+        if _tp_uniquenos:
+            from detection_severity_generator import generate_detection_severity_analysis as _gen_detection
+            from time_analysis_generator import generate_time_analysis as _gen_time
+
+            _tp_det_tpl = st.session_state.get('three_month_trend_data', {}).get('detection_analysis', pd.DataFrame())
+            if not _tp_det_tpl.empty and 'UniqueNo' in _tp_det_tpl.columns:
+                _tp_det_filtered = _tp_det_tpl[_tp_det_tpl['UniqueNo'].isin(_tp_uniquenos)]
+                if not _tp_det_filtered.empty:
+                    try:
+                        detection_data = _gen_detection(_tp_det_filtered, num_months)
+                    except Exception:
+                        pass
+
+            _tp_time_tpl = st.session_state.get('three_month_trend_data', {}).get('time_analysis', pd.DataFrame())
+            if not _tp_time_tpl.empty and 'UniqueNo' in _tp_time_tpl.columns:
+                _tp_time_filtered = _tp_time_tpl[_tp_time_tpl['UniqueNo'].isin(_tp_uniquenos)]
+                if not _tp_time_filtered.empty:
+                    try:
+                        time_data = _gen_time(_tp_time_filtered, num_months)
+                    except Exception:
+                        pass
+        else:
+            st.warning("🎯 True Positive filter: no confirmed true positive records found. Showing regular analysis.")
 
     # ============================================
     # DYNAMIC SECTION LETTERING
@@ -1513,11 +1586,22 @@ def falcon_dashboard_pdf_layout():
                         )
                     elif _tp_l > 0:
                         _verdict_color = '#991b1b'
+                        # Get TP file names from raw detection data for latest month
+                        _tp_fnames = []
+                        _raw_m_det = st.session_state.get('raw_monthly_detections', {})
+                        if _raw_m_det and _res_latest in _raw_m_det:
+                            _rm_df = _raw_m_det[_res_latest]
+                            if isinstance(_rm_df, pd.DataFrame) and not _rm_df.empty and 'FileName' in _rm_df.columns and 'Resolution' in _rm_df.columns:
+                                _rm_ip = _rm_df['Status'].astype(str).str.strip().str.lower() == 'in_progress' if 'Status' in _rm_df.columns else pd.Series([False]*len(_rm_df), index=_rm_df.index)
+                                _rm_tp = _rm_df['Resolution'].astype(str).str.strip().str.lower() == 'true_positive'
+                                _rm_tp_rows = _rm_df[_rm_tp & ~_rm_ip]
+                                _tp_fnames = [f for f in _rm_tp_rows['FileName'].dropna().unique().tolist() if str(f).strip() not in ('', 'nan', 'none')]
+                        _fn_display = ', '.join(_tp_fnames[:5]) + ('...' if len(_tp_fnames) > 5 else '') if _tp_fnames else None
                         _verdict_text  = (
                             f"<strong style='color:#991b1b;'>{_tp_l} true positive</strong> threat(s) confirmed for "
                             f"<strong>{_res_latest}</strong> out of {_tot_l} total detection(s) "
-                            f"({_fp_l} false positive, {_ip_l} in-progress). "
-                            f"The analysis below focuses on these confirmed threats only."
+                            f"({_fp_l} false positive, {_ip_l} in-progress)."
+                            + (f" Detection file(s): <strong>{_fn_display}</strong>." if _fn_display else "")
                         )
                     else:
                         _verdict_color = '#92400e'
@@ -2818,14 +2902,19 @@ def apply_pdf_chart_styling(chart, analysis_key=None):
     # Font size: 8 for tactic/technique charts (many items), 11 for everything else
     legend_font_size = 8 if _is_compact_legend_chart else 11
 
-    # Build legend config — compact for tactic/technique charts to avoid scrolling
+    # Build legend config — always vertical on the right so "latest month" is at top
     _legend_cfg = dict(
         font=dict(family='Arial', size=legend_font_size, color='#333333'),
-        traceorder='reversed',  # Show highest values at top
-        itemsizing='constant',  # Prevent scrolling
+        traceorder='reversed',  # Latest month at top (reversed trace insertion order)
+        itemsizing='constant',
+        orientation='v',       # Vertical list so top = most recent, bottom = oldest
+        x=1.02,
+        xanchor='left',
+        y=0.5,
+        yanchor='middle',
     )
     if _is_compact_legend_chart:
-        # Compact vertical legend: tighten row gaps and cap item width
+        # Compact vertical legend for tactic/technique charts (many items)
         _legend_cfg.update(dict(
             tracegroupgap=0,
             itemwidth=30,
