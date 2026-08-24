@@ -1198,6 +1198,16 @@ def falcon_dashboard_pdf_layout():
 
         include_detection_analysis = st.checkbox("Detection and Severity Analysis", value=True, help="Include detection and severity trends")
 
+        # Sub-option for the B.1 Critical & High Detection Overview (indented under Detection and Severity)
+        # Hidden by default so the report stays compact; tick to include the B.1 chart + its key finding.
+        include_detection_overview = False
+        if include_detection_analysis:
+            include_detection_overview = st.checkbox(
+                "    ↳ Critical & High Detection Overview (B.1)",
+                value=False,
+                help="Include the B.1 Detection Count by Severity overview (Critical boxes + High Detections chart, Critical details, and its key finding). Off by default for a cleaner report."
+            )
+
         # Sub-option for quarantine analysis (indented under Detection and Severity)
         include_quarantine_analysis = False
         if include_detection_analysis:
@@ -2144,236 +2154,237 @@ def falcon_dashboard_pdf_layout():
         st.markdown(f'<div class="section-header">{section_letter}. Detection and Severity Analysis</div>', unsafe_allow_html=True)
         st.markdown('<div class="analysis-section">', unsafe_allow_html=True)
 
-        # Critical and High Detection Overview - Side by Side Layout
-        st.markdown(f'<div class="chart-title">{section_letter}.1. Detection Count by Severity Across {month_text} Trends</div>', unsafe_allow_html=True)
+        if include_detection_overview:
+            # Critical and High Detection Overview - Side by Side Layout
+            st.markdown(f'<div class="chart-title">{section_letter}.1. Detection Count by Severity Across {month_text} Trends</div>', unsafe_allow_html=True)
 
-        if 'critical_high_overview' in detection_data:
-            # Get unique months sorted chronologically (by year AND month)
-            month_name_to_num = {
-                'January': 1, 'February': 2, 'March': 3, 'April': 4,
-                'May': 5, 'June': 6, 'July': 7, 'August': 8,
-                'September': 9, 'October': 10, 'November': 11, 'December': 12,
-                'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-                'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
-            }
+            if 'critical_high_overview' in detection_data:
+                # Get unique months sorted chronologically (by year AND month)
+                month_name_to_num = {
+                    'January': 1, 'February': 2, 'March': 3, 'April': 4,
+                    'May': 5, 'June': 6, 'July': 7, 'August': 8,
+                    'September': 9, 'October': 10, 'November': 11, 'December': 12,
+                    'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                    'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+                }
 
-            def get_month_sort_key(month_str):
-                """Sort by year first, then month (chronological order)"""
-                if pd.isna(month_str):
-                    return (9999, 99)
-                month_str = str(month_str)
+                def get_month_sort_key(month_str):
+                    """Sort by year first, then month (chronological order)"""
+                    if pd.isna(month_str):
+                        return (9999, 99)
+                    month_str = str(month_str)
 
-                # Extract year (4-digit number)
-                import re
-                year_match = re.search(r'(\d{4})', month_str)
-                year = int(year_match.group(1)) if year_match else 2000
+                    # Extract year (4-digit number)
+                    import re
+                    year_match = re.search(r'(\d{4})', month_str)
+                    year = int(year_match.group(1)) if year_match else 2000
 
-                # Extract month number
-                month_num = 0
-                for month_name, num in month_name_to_num.items():
-                    if month_name in month_str:
-                        month_num = num
-                        break
+                    # Extract month number
+                    month_num = 0
+                    for month_name, num in month_name_to_num.items():
+                        if month_name in month_str:
+                            month_num = num
+                            break
 
-                return (year, month_num)
+                    return (year, month_num)
 
-            # Get sorted months
-            if 'Month' in detection_data['critical_high_overview'].columns:
-                months_list = detection_data['critical_high_overview']['Month'].unique()
-                months = sorted([m for m in months_list if pd.notna(m)], key=get_month_sort_key)
-            else:
-                months = ['Single Month']
+                # Get sorted months
+                if 'Month' in detection_data['critical_high_overview'].columns:
+                    months_list = detection_data['critical_high_overview']['Month'].unique()
+                    months = sorted([m for m in months_list if pd.notna(m)], key=get_month_sort_key)
+                else:
+                    months = ['Single Month']
 
-            # Create two columns: Critical | High
-            col_critical, col_high = st.columns(2)
+                # Create two columns: Critical | High
+                col_critical, col_high = st.columns(2)
 
-            # LEFT COLUMN: Critical Detections (3 boxes side-by-side horizontally)
-            with col_critical:
-                st.markdown('<div style="font-size: 10px; font-weight: bold; margin-bottom: 5px; color: #333; text-align: center;">Critical Detections</div>', unsafe_allow_html=True)
+                # LEFT COLUMN: Critical Detections (3 boxes side-by-side horizontally)
+                with col_critical:
+                    st.markdown('<div style="font-size: 10px; font-weight: bold; margin-bottom: 5px; color: #333; text-align: center;">Critical Detections</div>', unsafe_allow_html=True)
 
-                # Build list of box data with index-based monthly colors (like A.2)
-                box_data = []
-                for idx, month in enumerate(months):
-                    # Filter data for Critical Detections in this month
-                    critical_data = detection_data['critical_high_overview'][
-                        (detection_data['critical_high_overview']['KEY METRICS'] == 'Critical Detections') &
-                        (detection_data['critical_high_overview']['Month'] == month)
-                    ]
+                    # Build list of box data with index-based monthly colors (like A.2)
+                    box_data = []
+                    for idx, month in enumerate(months):
+                        # Filter data for Critical Detections in this month
+                        critical_data = detection_data['critical_high_overview'][
+                            (detection_data['critical_high_overview']['KEY METRICS'] == 'Critical Detections') &
+                            (detection_data['critical_high_overview']['Month'] == month)
+                        ]
 
-                    # Get count value
-                    if not critical_data.empty and 'Count' in critical_data.columns:
-                        count_value = int(critical_data['Count'].iloc[0])
-                    else:
-                        count_value = 0
+                        # Get count value
+                        if not critical_data.empty and 'Count' in critical_data.columns:
+                            count_value = int(critical_data['Count'].iloc[0])
+                        else:
+                            count_value = 0
 
-                    # Get month color based on index (1st=Green, 2nd=Blue, 3rd=Gold)
-                    if idx == 0:
-                        month_color = MONTHLY_COLORS['month_1']  # Green
-                    elif idx == 1:
-                        month_color = MONTHLY_COLORS['month_2']  # Blue
-                    else:
-                        month_color = MONTHLY_COLORS['month_3']  # Gold
+                        # Get month color based on index (1st=Green, 2nd=Blue, 3rd=Gold)
+                        if idx == 0:
+                            month_color = MONTHLY_COLORS['month_1']  # Green
+                        elif idx == 1:
+                            month_color = MONTHLY_COLORS['month_2']  # Blue
+                        else:
+                            month_color = MONTHLY_COLORS['month_3']  # Gold
 
-                    box_data.append((month, count_value, month_color))
+                        box_data.append((month, count_value, month_color))
 
-                # Create horizontal container for boxes with monthly colors and larger font (36px like A.2)
-                boxes_html = '<div style="display: flex; gap: 8px; justify-content: center;">'
-                for month, count_value, month_color in box_data:
-                    boxes_html += f'<div style="background-color: {month_color}; border-radius: 8px; padding: 15px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); flex: 1; min-width: 80px; display: flex; flex-direction: column; justify-content: center;"><div style="font-size: 12px; color: #000000; font-weight: 600; margin-bottom: 5px;">{month}</div><div style="font-size: 36px; color: #000000; font-weight: bold; margin: 5px 0;">{count_value}</div><div style="font-size: 10px; color: #000000;">Critical</div></div>'
-                boxes_html += '</div>'
-                st.markdown(boxes_html, unsafe_allow_html=True)
+                    # Create horizontal container for boxes with monthly colors and larger font (36px like A.2)
+                    boxes_html = '<div style="display: flex; gap: 8px; justify-content: center;">'
+                    for month, count_value, month_color in box_data:
+                        boxes_html += f'<div style="background-color: {month_color}; border-radius: 8px; padding: 15px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); flex: 1; min-width: 80px; display: flex; flex-direction: column; justify-content: center;"><div style="font-size: 12px; color: #000000; font-weight: 600; margin-bottom: 5px;">{month}</div><div style="font-size: 36px; color: #000000; font-weight: bold; margin: 5px 0;">{count_value}</div><div style="font-size: 10px; color: #000000;">Critical</div></div>'
+                    boxes_html += '</div>'
+                    st.markdown(boxes_html, unsafe_allow_html=True)
 
-            # RIGHT COLUMN: High Detections (independent bar chart)
-            with col_high:
-                st.markdown('<div style="font-size: 10px; font-weight: bold; margin-bottom: 5px; color: #333; text-align: center;">High Detections</div>', unsafe_allow_html=True)
+                # RIGHT COLUMN: High Detections (independent bar chart)
+                with col_high:
+                    st.markdown('<div style="font-size: 10px; font-weight: bold; margin-bottom: 5px; color: #333; text-align: center;">High Detections</div>', unsafe_allow_html=True)
 
-                # Filter for High Detections only
-                high_only = detection_data['critical_high_overview'][
-                    detection_data['critical_high_overview']['KEY METRICS'] == 'High Detections'
-                ].copy()
+                    # Filter for High Detections only
+                    high_only = detection_data['critical_high_overview'][
+                        detection_data['critical_high_overview']['KEY METRICS'] == 'High Detections'
+                    ].copy()
 
-                if not high_only.empty:
-                    create_chart_with_pivot_logic(
-                        high_only,
-                        rows=['Month'],
-                        columns=[],
-                        values=['Count'],
-                        chart_type='Bar Chart',
-                        height=180,
-                        analysis_key='critical_high_overview',
-                        use_monthly_colors=True
-                    )
+                    if not high_only.empty:
+                        create_chart_with_pivot_logic(
+                            high_only,
+                            rows=['Month'],
+                            columns=[],
+                            values=['Count'],
+                            chart_type='Bar Chart',
+                            height=180,
+                            analysis_key='critical_high_overview',
+                            use_monthly_colors=True
+                        )
 
-        # ==============================================
-        # CRITICAL DETECTION DETAILS LISTING
-        # Show detailed info when critical count > 0
-        # ==============================================
-        # Check if any month has critical detections
-        has_critical = any(count > 0 for _, count, _ in box_data)
+            # ==============================================
+            # CRITICAL DETECTION DETAILS LISTING
+            # Show detailed info when critical count > 0
+            # ==============================================
+            # Check if any month has critical detections
+            has_critical = any(count > 0 for _, count, _ in box_data)
 
-        if has_critical:
-            # Get raw detection data from session state
-            raw_detection_data = st.session_state.get('three_month_trend_data', {}).get('detection_analysis', pd.DataFrame())
+            if has_critical:
+                # Get raw detection data from session state
+                raw_detection_data = st.session_state.get('three_month_trend_data', {}).get('detection_analysis', pd.DataFrame())
 
-            if not raw_detection_data.empty and 'SeverityName' in raw_detection_data.columns:
-                # Filter for Critical severity only
-                critical_records = raw_detection_data[
-                    raw_detection_data['SeverityName'].str.lower() == 'critical'
-                ].copy()
+                if not raw_detection_data.empty and 'SeverityName' in raw_detection_data.columns:
+                    # Filter for Critical severity only
+                    critical_records = raw_detection_data[
+                        raw_detection_data['SeverityName'].str.lower() == 'critical'
+                    ].copy()
 
-                if not critical_records.empty:
-                    st.markdown(f'<div class="chart-title" style="margin-top: 15px;">{section_letter}.1a. Critical Severity Detection Details</div>', unsafe_allow_html=True)
+                    if not critical_records.empty:
+                        st.markdown(f'<div class="chart-title" style="margin-top: 15px;">{section_letter}.1a. Critical Severity Detection Details</div>', unsafe_allow_html=True)
 
-                    # Define columns to display (check which ones exist)
-                    display_columns = []
-                    column_mapping = {
-                        'Hostname': 'Hostname',
-                        'UserName': 'Username',
-                        'FileName': 'Filename',
-                        'Objective': 'Objective',
-                        'Tactic': 'Tactic',
-                        'Technique': 'Technique'
-                    }
+                        # Define columns to display (check which ones exist)
+                        display_columns = []
+                        column_mapping = {
+                            'Hostname': 'Hostname',
+                            'UserName': 'Username',
+                            'FileName': 'Filename',
+                            'Objective': 'Objective',
+                            'Tactic': 'Tactic',
+                            'Technique': 'Technique'
+                        }
 
-                    for col, display_name in column_mapping.items():
-                        if col in critical_records.columns:
-                            display_columns.append(col)
+                        for col, display_name in column_mapping.items():
+                            if col in critical_records.columns:
+                                display_columns.append(col)
 
-                    if display_columns:
-                        # Create display dataframe with only relevant columns
-                        display_df = critical_records[display_columns].copy()
+                        if display_columns:
+                            # Create display dataframe with only relevant columns
+                            display_df = critical_records[display_columns].copy()
 
-                        # Rename columns for display
-                        display_df.columns = [column_mapping.get(col, col) for col in display_df.columns]
+                            # Rename columns for display
+                            display_df.columns = [column_mapping.get(col, col) for col in display_df.columns]
 
-                        # Add Month column if available (from Detect MALAYSIA TIME FORMULA)
-                        if 'Detect MALAYSIA TIME FORMULA' in critical_records.columns:
-                            try:
-                                # Parse using dd/mm/yyyy format (Excel format used across all data)
-                                _date_formats = [
-                                    '%d/%m/%Y %I:%M:%S %p',  # 31/07/2025 01:31:09 AM
-                                    '%d/%m/%Y %H:%M:%S',      # 31/07/2025 09:12:52
-                                    '%Y/%m/%d %I:%M:%S %p',  # 2025/07/31 01:31:09 AM
-                                    '%Y-%m-%d %H:%M:%S',      # 2025-07-31 09:12:52
-                                ]
-                                _parsed = pd.Series(
-                                    [pd.NaT] * len(critical_records),
-                                    index=critical_records.index
-                                )
-                                for _fmt in _date_formats:
-                                    _mask = _parsed.isna()
-                                    if not _mask.any():
-                                        break
-                                    _parsed[_mask] = pd.to_datetime(
-                                        critical_records.loc[_mask, 'Detect MALAYSIA TIME FORMULA'],
-                                        errors='coerce',
-                                        format=_fmt
+                            # Add Month column if available (from Detect MALAYSIA TIME FORMULA)
+                            if 'Detect MALAYSIA TIME FORMULA' in critical_records.columns:
+                                try:
+                                    # Parse using dd/mm/yyyy format (Excel format used across all data)
+                                    _date_formats = [
+                                        '%d/%m/%Y %I:%M:%S %p',  # 31/07/2025 01:31:09 AM
+                                        '%d/%m/%Y %H:%M:%S',      # 31/07/2025 09:12:52
+                                        '%Y/%m/%d %I:%M:%S %p',  # 2025/07/31 01:31:09 AM
+                                        '%Y-%m-%d %H:%M:%S',      # 2025-07-31 09:12:52
+                                    ]
+                                    _parsed = pd.Series(
+                                        [pd.NaT] * len(critical_records),
+                                        index=critical_records.index
                                     )
-                                # Fallback: flexible parsing with dayfirst=True
-                                _still_na = _parsed.isna()
-                                if _still_na.any():
-                                    _parsed[_still_na] = pd.to_datetime(
-                                        critical_records.loc[_still_na, 'Detect MALAYSIA TIME FORMULA'],
-                                        errors='coerce',
-                                        dayfirst=True
-                                    )
-                                critical_records['Month'] = _parsed.dt.strftime('%B %Y')
-                                display_df.insert(0, 'Month', critical_records['Month'])
-                            except:
-                                pass
+                                    for _fmt in _date_formats:
+                                        _mask = _parsed.isna()
+                                        if not _mask.any():
+                                            break
+                                        _parsed[_mask] = pd.to_datetime(
+                                            critical_records.loc[_mask, 'Detect MALAYSIA TIME FORMULA'],
+                                            errors='coerce',
+                                            format=_fmt
+                                        )
+                                    # Fallback: flexible parsing with dayfirst=True
+                                    _still_na = _parsed.isna()
+                                    if _still_na.any():
+                                        _parsed[_still_na] = pd.to_datetime(
+                                            critical_records.loc[_still_na, 'Detect MALAYSIA TIME FORMULA'],
+                                            errors='coerce',
+                                            dayfirst=True
+                                        )
+                                    critical_records['Month'] = _parsed.dt.strftime('%B %Y')
+                                    display_df.insert(0, 'Month', critical_records['Month'])
+                                except:
+                                    pass
 
-                        # Style the table with compact formatting for PDF
-                        st.markdown("""
-                        <style>
-                        .critical-table {
-                            font-size: 9px !important;
-                            width: 100%;
-                        }
-                        .critical-table th {
-                            background-color: #f8d7da !important;
-                            color: #721c24 !important;
-                            padding: 4px 6px !important;
-                            text-align: left !important;
-                            font-weight: 600 !important;
-                            border-bottom: 2px solid #f5c6cb !important;
-                        }
-                        .critical-table td {
-                            padding: 3px 6px !important;
-                            border-bottom: 1px solid #dee2e6 !important;
-                            font-size: 8px !important;
-                        }
-                        .critical-table tr:nth-child(even) {
-                            background-color: #f8f9fa !important;
-                        }
-                        </style>
-                        """, unsafe_allow_html=True)
+                            # Style the table with compact formatting for PDF
+                            st.markdown("""
+                            <style>
+                            .critical-table {
+                                font-size: 9px !important;
+                                width: 100%;
+                            }
+                            .critical-table th {
+                                background-color: #f8d7da !important;
+                                color: #721c24 !important;
+                                padding: 4px 6px !important;
+                                text-align: left !important;
+                                font-weight: 600 !important;
+                                border-bottom: 2px solid #f5c6cb !important;
+                            }
+                            .critical-table td {
+                                padding: 3px 6px !important;
+                                border-bottom: 1px solid #dee2e6 !important;
+                                font-size: 8px !important;
+                            }
+                            .critical-table tr:nth-child(even) {
+                                background-color: #f8f9fa !important;
+                            }
+                            </style>
+                            """, unsafe_allow_html=True)
 
-                        # Convert to HTML table
-                        html_table = '<table class="critical-table"><thead><tr>'
-                        for col in display_df.columns:
-                            html_table += f'<th>{col}</th>'
-                        html_table += '</tr></thead><tbody>'
-
-                        for _, row in display_df.iterrows():
-                            html_table += '<tr>'
+                            # Convert to HTML table
+                            html_table = '<table class="critical-table"><thead><tr>'
                             for col in display_df.columns:
-                                value = row[col] if pd.notna(row[col]) else '-'
-                                # Truncate long values for display
-                                if isinstance(value, str) and len(value) > 30:
-                                    value = value[:27] + '...'
-                                html_table += f'<td>{value}</td>'
-                            html_table += '</tr>'
+                                html_table += f'<th>{col}</th>'
+                            html_table += '</tr></thead><tbody>'
 
-                        html_table += '</tbody></table>'
-                        st.markdown(html_table, unsafe_allow_html=True)
+                            for _, row in display_df.iterrows():
+                                html_table += '<tr>'
+                                for col in display_df.columns:
+                                    value = row[col] if pd.notna(row[col]) else '-'
+                                    # Truncate long values for display
+                                    if isinstance(value, str) and len(value) > 30:
+                                        value = value[:27] + '...'
+                                    html_table += f'<td>{value}</td>'
+                                html_table += '</tr>'
 
-        if include_chart_insights and 'critical_high_overview' in detection_data:
-            _cho = detection_data['critical_high_overview']
-            if not _cho.empty and 'KEY METRICS' in _cho.columns and 'Count' in _cho.columns:
-                _crit_tot = int(_cho[_cho['KEY METRICS'] == 'Critical Detections']['Count'].sum())
-                _high_tot = int(_cho[_cho['KEY METRICS'] == 'High Detections']['Count'].sum())
-                _col = '#991b1b' if _crit_tot > 0 else '#92400e'
-                _insight_box(f"<strong style='color:{_col};'>{_crit_tot} Critical</strong> and <strong>{_high_tot} High</strong> severity detections recorded across {month_text}.")
+                            html_table += '</tbody></table>'
+                            st.markdown(html_table, unsafe_allow_html=True)
+
+            if include_chart_insights and 'critical_high_overview' in detection_data:
+                _cho = detection_data['critical_high_overview']
+                if not _cho.empty and 'KEY METRICS' in _cho.columns and 'Count' in _cho.columns:
+                    _crit_tot = int(_cho[_cho['KEY METRICS'] == 'Critical Detections']['Count'].sum())
+                    _high_tot = int(_cho[_cho['KEY METRICS'] == 'High Detections']['Count'].sum())
+                    _col = '#991b1b' if _crit_tot > 0 else '#92400e'
+                    _insight_box(f"<strong style='color:{_col};'>{_crit_tot} Critical</strong> and <strong>{_high_tot} High</strong> severity detections recorded across {month_text}.")
 
         # C.2 and C.3 side by side
         col1, col2 = st.columns(2)
