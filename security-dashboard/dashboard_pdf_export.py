@@ -2232,9 +2232,11 @@ def falcon_dashboard_pdf_layout():
                     box_data.append((month, count_value, month_color))
 
                 # Create horizontal container for boxes with monthly colors and larger font (36px like A.2)
-                boxes_html = '<div style="display: flex; gap: 8px; justify-content: center;">'
+                # margin-bottom gives consistent whitespace before the next grey chart-title (B.2/B.3),
+                # matching the spacing of the echarts charts; min-height keeps both boxes even.
+                boxes_html = '<div style="display: flex; gap: 10px; justify-content: center; margin: 2px 0 14px 0;">'
                 for month, count_value, month_color in box_data:
-                    boxes_html += f'<div style="background-color: {month_color}; border-radius: 8px; padding: 15px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); flex: 1; min-width: 80px; display: flex; flex-direction: column; justify-content: center;"><div style="font-size: 12px; color: #000000; font-weight: 600; margin-bottom: 5px;">{month}</div><div style="font-size: 36px; color: #000000; font-weight: bold; margin: 5px 0;">{count_value}</div><div style="font-size: 10px; color: #000000;">Critical</div></div>'
+                    boxes_html += f'<div style="background-color: {month_color}; border-radius: 8px; padding: 12px 15px; text-align: center; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.12); border: 1px solid rgba(0, 0, 0, 0.06); flex: 1; min-width: 80px; min-height: 84px; display: flex; flex-direction: column; justify-content: center;"><div style="font-size: 12px; color: #000000; font-weight: 600; margin-bottom: 4px;">{month}</div><div style="font-size: 36px; line-height: 1.1; color: #000000; font-weight: bold; margin: 2px 0;">{count_value}</div><div style="font-size: 10px; color: #000000;">Critical</div></div>'
                 boxes_html += '</div>'
                 st.markdown(boxes_html, unsafe_allow_html=True)
 
