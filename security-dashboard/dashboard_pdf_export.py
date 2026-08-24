@@ -1062,6 +1062,143 @@ def render_capture_modal():
 
 
 # ============================================
+# FULL ANALYSIS EXCEL EXPORT
+# ============================================
+
+# Friendly sheet labels for known analysis keys (fallback = humanized key)
+_EXCEL_LABELS = {
+    'overview_key_metrics': 'Host Key Metrics',
+    'overview_top_hosts': 'Top Hosts w Detections',
+    'sensor_analysis': 'Sensor Version Analysis',
+    'critical_high_overview': 'Critical-High Overview',
+    'severity_trend': 'Severity Trend',
+    'country_analysis': 'Country Analysis',
+    'file_analysis': 'File Analysis',
+    'tactics_by_severity': 'Tactics by Severity',
+    'technique_by_severity': 'Technique by Severity',
+    'raw_data': 'Raw Records',
+    'raw_data_filtered': 'Raw Records (Filtered)',
+    'daily_trends': 'Daily Trends',
+    'hourly_analysis': 'Hourly Analysis',
+    'day_of_week': 'Day of Week',
+    'monthly_counts': 'Monthly Counts',
+    'offline_monthly_counts': 'Offline Monthly Counts',
+}
+
+# Preferred display order per section (mirrors the order shown on the single page)
+_EXCEL_SECTION_ORDER = {
+    'host': ['overview_key_metrics', 'overview_top_hosts', 'sensor_analysis'],
+    'detection': ['critical_high_overview', 'severity_trend', 'country_analysis',
+                  'file_analysis', 'tactics_by_severity', 'technique_by_severity'],
+    'time': ['daily_trends', 'hourly_analysis', 'day_of_week'],
+}
+
+
+def build_full_analysis_excel(*, dashboard_title, section_letters, month_text,
+                              include_ticket_lifecycle, include_host_analysis, include_sensor_offline,
+                              include_detection_analysis, include_quarantine_analysis,
+                              include_time_analysis, include_tp_only,
+                              host_data, detection_data, time_data, ticket_data,
+                              quarantine_data, sensor_offline_data):
+    """Build a multi-sheet Excel workbook of every analysis table currently shown
+    on the single page (respecting the user's section ticks), for external cross-checking.
+    Returns the workbook as bytes.
+    """
+    import io
+    import re as _re
+    from datetime import datetime as _dt
+
+    def _humanize(key):
+        return _EXCEL_LABELS.get(key, str(key).replace('_', ' ').title())
+
+    def _ordered_items(data, section_key):
+        """Yield (key, df) for non-empty DataFrame values, preferred order first."""
+        keys = list(_EXCEL_SECTION_ORDER.get(section_key, []))
+        for k in data.keys():
+            if k not in keys:
+                keys.append(k)
+        for k in keys:
+            v = data.get(k)
+            if isinstance(v, pd.DataFrame) and not v.empty:
+                yield k, v
+
+    # Collect (label, df) in page order
+    collected = []
+
+    def _collect_section(section_key, data, enabled):
+        if not (enabled and isinstance(data, dict) and data):
+            return
+        letter = section_letters.get(section_key, '')
+        n = 0
+        for k, df in _ordered_items(data, section_key):
+            n += 1
+            label = f"{letter}{n} {_humanize(k)}" if letter else _humanize(k)
+            collected.append((label, df))
+
+    _collect_section('host', host_data, include_host_analysis)
+    _collect_section('detection', detection_data, include_detection_analysis)
+    _collect_section('time', time_data, include_time_analysis)
+    _collect_section('ticket', ticket_data, include_ticket_lifecycle)
+
+    # Sub-analyses that live in their own dicts
+    if include_host_analysis and include_sensor_offline and isinstance(sensor_offline_data, dict):
+        for k, v in sensor_offline_data.items():
+            if isinstance(v, pd.DataFrame) and not v.empty:
+                collected.append((f"Sensor Offline {_humanize(k)}", v))
+    if include_detection_analysis and include_quarantine_analysis and isinstance(quarantine_data, dict):
+        for k, v in quarantine_data.items():
+            if isinstance(v, pd.DataFrame) and not v.empty:
+                collected.append((f"Quarantine {_humanize(k)}", v))
+
+    # Resolve unique, Excel-safe sheet names (<=31 chars, no : \ / ? * [ ])
+    used = set()
+
+    def _sheet_name(name):
+        name = _re.sub(r'[:\\/?*\[\]]', ' ', str(name)).strip()[:31] or 'Sheet'
+        base, i = name, 2
+        while name.lower() in used:
+            sfx = f"_{i}"
+            name = (base[:31 - len(sfx)]) + sfx
+            i += 1
+        used.add(name.lower())
+        return name
+
+    sheet_names = [_sheet_name(label) for label, _ in collected]
+
+    # Build workbook
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        # Summary / cover sheet
+        info_df = pd.DataFrame({
+            'Field': ['Report Title', 'Generated', 'Months Covered',
+                      'True Positive Only Filter', 'Total Analysis Sheets'],
+            'Value': [dashboard_title, _dt.now().strftime('%Y-%m-%d %H:%M'), month_text,
+                      'Yes' if include_tp_only else 'No', str(len(collected))],
+        })
+        info_df.to_excel(writer, sheet_name='Summary', index=False, startrow=0)
+
+        toc_rows = []
+        for (label, df), sheet in zip(collected, sheet_names):
+            toc_rows.append({'Sheet': sheet, 'Analysis': label,
+                             'Rows': len(df), 'Columns': len(df.columns)})
+        if toc_rows:
+            toc_df = pd.DataFrame(toc_rows)
+            toc_df.to_excel(writer, sheet_name='Summary', index=False,
+                            startrow=len(info_df) + 3)
+
+        # One sheet per analysis table
+        for (label, df), sheet in zip(collected, sheet_names):
+            out = df.copy()
+            # Preserve a meaningful index (month/category labels) as a column
+            if out.index.name is not None or not isinstance(out.index, pd.RangeIndex):
+                out = out.reset_index()
+            out.to_excel(writer, sheet_name=sheet, index=False)
+
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+# ============================================
 # MAIN DASHBOARD FUNCTION
 # ============================================
 
@@ -1129,6 +1266,17 @@ def falcon_dashboard_pdf_layout():
         # Show popup launcher in sidebar when activated
         if st.session_state.get('show_capture_modal', False):
             render_capture_modal()
+
+        # ============================
+        # DOWNLOAD FULL ANALYSIS AS EXCEL
+        # Button is rendered into this slot later, once the data and the
+        # user's section ticks are known, so it reflects exactly what's on the page.
+        # ============================
+        st.markdown("---")
+        st.markdown("### 📊 Download Full Analysis (Excel)")
+        st.markdown("Export every table behind the report so an external party can cross-check the numbers in Excel")
+        excel_export_slot = st.empty()
+        st.caption("💡 Includes only the sections you've ticked, plus raw records")
 
     # Dashboard Title
     st.markdown(f"""
@@ -1340,6 +1488,42 @@ def falcon_dashboard_pdf_layout():
     if include_executive_summary:
         section_letters['executive'] = letters[current_letter_index]
         current_letter_index += 1
+
+    # ============================================
+    # FULL ANALYSIS EXCEL DOWNLOAD (rendered into the sidebar slot below Screen Capture)
+    # Built here so it reflects the current section ticks and any True-Positive-Only filter.
+    # ============================================
+    try:
+        _excel_bytes = build_full_analysis_excel(
+            dashboard_title=dashboard_title,
+            section_letters=section_letters,
+            month_text=month_text,
+            include_ticket_lifecycle=include_ticket_lifecycle,
+            include_host_analysis=include_host_analysis,
+            include_sensor_offline=include_sensor_offline,
+            include_detection_analysis=include_detection_analysis,
+            include_quarantine_analysis=include_quarantine_analysis,
+            include_time_analysis=include_time_analysis,
+            include_tp_only=include_tp_only,
+            host_data=host_data,
+            detection_data=detection_data,
+            time_data=time_data,
+            ticket_data=ticket_data,
+            quarantine_data=quarantine_data,
+            sensor_offline_data=sensor_offline_data,
+        )
+        import re as _re_excel
+        _safe_title = _re_excel.sub(r'[^A-Za-z0-9]+', '_', dashboard_title).strip('_')[:60] or 'Falcon_Report'
+        excel_export_slot.download_button(
+            label="📊 Download Full Analysis (Excel)",
+            data=_excel_bytes,
+            file_name=f"{_safe_title}_Full_Analysis.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            type="primary",
+        )
+    except Exception as _excel_err:
+        excel_export_slot.warning(f"⚠️ Excel export unavailable: {_excel_err}")
 
     # ============================================
     # TICKET LIFECYCLE ANALYSIS SECTION (DYNAMIC)
